@@ -1,9 +1,11 @@
-# Legible Engine — Vision Document
+# LegiCAD / Legible Engine — Vision Document
 
 **Version:** 1.0  
 **Date:** September 8, 2026  
 **Author:** Jer  
 **Context:** Legible Studio pivot from permit-document generator to generative design platform
+
+**Name:** LegiCAD — *Computer Assisted Design, as it should be.*
 
 ---
 

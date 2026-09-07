@@ -1,9 +1,11 @@
-# Legible Engine
+# LegiCAD (Legible Engine)
 
 **Generative design platform for housing — starting in Sudbury, Ontario.**
 
 > Question-based design meets regime architecture in parametric space.  
 > The rules come first. You sculpt within what's possible.
+
+**Name:** LegiCAD — *Computer Assisted Design, as it should be.*
 
 ---
 
