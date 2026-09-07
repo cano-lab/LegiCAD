@@ -1,0 +1,14 @@
+# ArchEngine Generator Dependencies
+# Install with: pip install -r requirements.txt
+
+# Core SVG/PDF generation
+reportlab>=4.0.0       # PDF generation with vector precision
+svglib>=1.5.0          # SVG to ReportLab conversion
+
+# Optional but recommended
+Pillow>=10.0.0         # Image handling for PDF export
+lxml>=4.9.0            # Better XML/SVG parsing
+
+# Development/testing (optional)
+pytest>=7.0.0          # Unit testing
+pytest-cov>=4.0.0      # Code coverage

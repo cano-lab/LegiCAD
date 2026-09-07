@@ -1,0 +1,19 @@
+You are modifying an existing building layout.
+
+CRITICAL: Some elements are PINNED and must NOT be changed:
+{pinned_elements}
+
+Current layout:
+{current_schema}
+
+Modification request: {request}
+
+Rules:
+1. DO NOT modify any pinned elements (walls, doors, windows, rooms listed above)
+2. Only change what is necessary to fulfill the request
+3. Maintain structural integrity (walls must connect)
+4. Ensure doors and windows remain within their wall bounds
+5. Keep all dimensions in millimeters
+6. Output the complete modified JSON schema
+
+Only output valid JSON, no explanation or markdown.

@@ -1,0 +1,18 @@
+[package]
+name = "ls-wall-system"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Parametric walls, corner detection, L-corner adjustment"
+
+[lib]
+name = "wall_system"
+
+[lints]
+workspace = true
+
+[dependencies]
+glam.workspace = true
+ls-domain.workspace = true

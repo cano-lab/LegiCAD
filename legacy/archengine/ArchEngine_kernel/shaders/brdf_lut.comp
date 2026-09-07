@@ -1,0 +1,137 @@
+#version 450
+
+/**
+ * BRDF LUT (Look-Up Table) Generator
+ *
+ * Pre-integrates the BRDF for the split-sum approximation used in IBL.
+ * Output is a 2D texture where:
+ *   - X axis = NdotV (cosine of view angle)
+ *   - Y axis = roughness
+ *   - R channel = scale factor for F0
+ *   - G channel = bias (added to F0 * scale)
+ *
+ * This allows efficient evaluation of the specular part of the rendering equation.
+ */
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+// Output BRDF LUT (RG16F recommended)
+layout(set = 0, binding = 0, rg16f) uniform writeonly image2D brdfLUT;
+
+layout(push_constant) uniform BRDFParams {
+    uint size;          // LUT size (e.g., 512)
+    uint sampleCount;   // Number of samples (e.g., 1024)
+    float _pad1, _pad2;
+} params;
+
+const float PI = 3.14159265359;
+
+// Van der Corput sequence
+float vanDerCorput(uint bits) {
+    bits = (bits << 16u) | (bits >> 16u);
+    bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+    bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+    bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+    bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+    return float(bits) * 2.3283064365386963e-10;
+}
+
+vec2 hammersley(uint i, uint N) {
+    return vec2(float(i) / float(N), vanDerCorput(i));
+}
+
+// GGX importance sampling
+vec3 importanceSampleGGX(vec2 xi, vec3 N, float roughness) {
+    float a = roughness * roughness;
+
+    float phi = 2.0 * PI * xi.x;
+    float cosTheta = sqrt((1.0 - xi.y) / (1.0 + (a * a - 1.0) * xi.y));
+    float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
+
+    vec3 H;
+    H.x = cos(phi) * sinTheta;
+    H.y = sin(phi) * sinTheta;
+    H.z = cosTheta;
+
+    vec3 up = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+    vec3 tangent = normalize(cross(up, N));
+    vec3 bitangent = cross(N, tangent);
+
+    return tangent * H.x + bitangent * H.y + N * H.z;
+}
+
+// Geometry function (Schlick-GGX)
+float geometrySchlickGGX(float NdotV, float roughness) {
+    float a = roughness;
+    float k = (a * a) / 2.0;
+
+    float nom = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
+
+    return nom / denom;
+}
+
+// Smith's method
+float geometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggx2 = geometrySchlickGGX(NdotV, roughness);
+    float ggx1 = geometrySchlickGGX(NdotL, roughness);
+
+    return ggx1 * ggx2;
+}
+
+// Integrate BRDF for given NdotV and roughness
+vec2 integrateBRDF(float NdotV, float roughness) {
+    vec3 V;
+    V.x = sqrt(1.0 - NdotV * NdotV);  // sin
+    V.y = 0.0;
+    V.z = NdotV;                       // cos
+
+    float A = 0.0;
+    float B = 0.0;
+
+    vec3 N = vec3(0.0, 0.0, 1.0);
+
+    for (uint i = 0u; i < params.sampleCount; i++) {
+        vec2 xi = hammersley(i, params.sampleCount);
+        vec3 H = importanceSampleGGX(xi, N, roughness);
+        vec3 L = normalize(2.0 * dot(V, H) * H - V);
+
+        float NdotL = max(L.z, 0.0);
+        float NdotH = max(H.z, 0.0);
+        float VdotH = max(dot(V, H), 0.0);
+
+        if (NdotL > 0.0) {
+            float G = geometrySmith(N, V, L, roughness);
+            float G_Vis = (G * VdotH) / (NdotH * NdotV);
+            float Fc = pow(1.0 - VdotH, 5.0);
+
+            A += (1.0 - Fc) * G_Vis;
+            B += Fc * G_Vis;
+        }
+    }
+
+    A /= float(params.sampleCount);
+    B /= float(params.sampleCount);
+
+    return vec2(A, B);
+}
+
+void main() {
+    uvec2 globalID = gl_GlobalInvocationID.xy;
+
+    if (globalID.x >= params.size || globalID.y >= params.size) {
+        return;
+    }
+
+    // Map pixel coordinates to NdotV and roughness
+    // X axis = NdotV (0 to 1, but avoid 0 to prevent divide by zero)
+    // Y axis = roughness (0 to 1)
+    float NdotV = max((float(globalID.x) + 0.5) / float(params.size), 0.001);
+    float roughness = max((float(globalID.y) + 0.5) / float(params.size), 0.001);
+
+    vec2 brdf = integrateBRDF(NdotV, roughness);
+
+    imageStore(brdfLUT, ivec2(globalID), vec4(brdf, 0.0, 1.0));
+}

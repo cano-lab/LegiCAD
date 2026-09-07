@@ -1,0 +1,27 @@
+[package]
+name = "ls-drawing"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "2D drawing pipeline: slice / annotate / svg / dxf (merged slicer_2d + plan_generator)"
+
+[lib]
+name = "drawing"
+
+[[bin]]
+name = "drawing_dump"
+path = "src/bin/dump.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+glam.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+ls-domain.workspace = true
+ls-archgeometry.workspace = true
+dxf = "0.6"

@@ -1,0 +1,27 @@
+[package]
+name = "ls-solver"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Legible Studio room-layout solver — program-driven top-down BSP, behind pk_object::Solver"
+
+[lib]
+name = "solver"
+
+[[bin]]
+name = "qbd_solve"
+path = "src/bin/qbd_solve.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+glam.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+pk-geom.workspace = true
+pk-object.workspace = true
+ls-obc.workspace = true
+thiserror.workspace = true

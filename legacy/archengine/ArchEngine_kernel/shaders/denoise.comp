@@ -1,0 +1,147 @@
+#version 460
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(binding = 0, rgba32f) uniform image2D currentFrame;
+layout(binding = 1, rgba32f) uniform image2D historyBuffer;
+layout(binding = 2, rgba32f) uniform image2D outputImage;
+
+layout(binding = 3) uniform DenoiseParams {
+    mat4 prevViewProj;
+    mat4 currViewProjInv;
+    vec2 resolution;
+    float blendFactor;      // How much to blend with history (0.9 = 90% history)
+    float varianceClamp;    // Clamp factor for variance-based rejection
+    uint frameCount;
+    uint enableSpatial;     // Enable edge-aware spatial filtering
+    float pad[2];
+} params;
+
+// Luminance calculation
+float luminance(vec3 color) {
+    return dot(color, vec3(0.2126, 0.7152, 0.0722));
+}
+
+// Clamp color to neighborhood to reduce ghosting
+vec3 clipToAABB(vec3 color, vec3 minColor, vec3 maxColor) {
+    vec3 center = 0.5 * (minColor + maxColor);
+    vec3 extents = 0.5 * (maxColor - minColor);
+
+    vec3 offset = color - center;
+    vec3 absOffset = abs(offset);
+    vec3 scale = extents / max(absOffset, vec3(0.0001));
+    float minScale = min(min(scale.x, scale.y), scale.z);
+
+    if (minScale < 1.0) {
+        return center + offset * minScale;
+    }
+    return color;
+}
+
+// Simple edge-aware blur for spatial denoising
+vec3 spatialFilter(ivec2 pixel) {
+    vec3 centerColor = imageLoad(currentFrame, pixel).rgb;
+    float centerLum = luminance(centerColor);
+
+    vec3 result = vec3(0.0);
+    float totalWeight = 0.0;
+
+    // 3x3 kernel
+    for (int dy = -1; dy <= 1; dy++) {
+        for (int dx = -1; dx <= 1; dx++) {
+            ivec2 samplePos = pixel + ivec2(dx, dy);
+            samplePos = clamp(samplePos, ivec2(0), ivec2(params.resolution) - 1);
+
+            vec3 sampleColor = imageLoad(currentFrame, samplePos).rgb;
+            float sampleLum = luminance(sampleColor);
+
+            // Edge-aware weight based on luminance difference
+            float lumDiff = abs(centerLum - sampleLum);
+            float weight = exp(-lumDiff * 10.0);
+
+            // Spatial weight
+            float dist = length(vec2(dx, dy));
+            weight *= exp(-dist * 0.5);
+
+            result += sampleColor * weight;
+            totalWeight += weight;
+        }
+    }
+
+    return result / max(totalWeight, 0.0001);
+}
+
+void main() {
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = ivec2(params.resolution);
+
+    if (pixel.x >= size.x || pixel.y >= size.y) {
+        return;
+    }
+
+    vec3 currentColor = imageLoad(currentFrame, pixel).rgb;
+
+    // Apply spatial filter if enabled
+    if (params.enableSpatial != 0) {
+        currentColor = spatialFilter(pixel);
+    }
+
+    // First frame - no history to blend with
+    if (params.frameCount == 0) {
+        imageStore(outputImage, pixel, vec4(currentColor, 1.0));
+        imageStore(historyBuffer, pixel, vec4(currentColor, 1.0));
+        return;
+    }
+
+    // Load history
+    vec3 historyColor = imageLoad(historyBuffer, pixel).rgb;
+
+    // Compute local color neighborhood for variance clamping
+    vec3 minColor = currentColor;
+    vec3 maxColor = currentColor;
+    vec3 momentSum = vec3(0.0);
+    vec3 moment2Sum = vec3(0.0);
+
+    for (int dy = -1; dy <= 1; dy++) {
+        for (int dx = -1; dx <= 1; dx++) {
+            ivec2 samplePos = pixel + ivec2(dx, dy);
+            samplePos = clamp(samplePos, ivec2(0), size - 1);
+
+            vec3 sampleColor = imageLoad(currentFrame, samplePos).rgb;
+            minColor = min(minColor, sampleColor);
+            maxColor = max(maxColor, sampleColor);
+            momentSum += sampleColor;
+            moment2Sum += sampleColor * sampleColor;
+        }
+    }
+
+    // Calculate variance and expand bounds
+    vec3 mean = momentSum / 9.0;
+    vec3 variance = moment2Sum / 9.0 - mean * mean;
+    vec3 stdDev = sqrt(max(variance, vec3(0.0)));
+
+    // Expand color bounds based on variance
+    float varianceScale = params.varianceClamp;
+    minColor = mean - stdDev * varianceScale;
+    maxColor = mean + stdDev * varianceScale;
+
+    // Clip history to neighborhood to reduce ghosting
+    vec3 clippedHistory = clipToAABB(historyColor, minColor, maxColor);
+
+    // Blend factor - reduce when there's high variance (new details)
+    float blendFactor = params.blendFactor;
+    float historyLum = luminance(historyColor);
+    float currentLum = luminance(currentColor);
+    float lumDiff = abs(historyLum - currentLum) / max(historyLum, 0.01);
+
+    // Reduce blend factor for high luminance differences
+    blendFactor *= exp(-lumDiff * 2.0);
+    blendFactor = clamp(blendFactor, 0.0, 0.95);
+
+    // Temporal blend
+    vec3 result = mix(currentColor, clippedHistory, blendFactor);
+
+    // Store results
+    imageStore(outputImage, pixel, vec4(result, 1.0));
+    imageStore(historyBuffer, pixel, vec4(result, 1.0));
+}

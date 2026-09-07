@@ -1,0 +1,11 @@
+{
+  "_comment": "M4 drawing oracle fixture: a simple 5m x 4m rectangular room with 150mm walls. Both the C++ kernel's drawing_dump and the Rust drawing_dump parse this format and emit a floor-plan SVG. Diff harness expects byte-identical output.",
+  "scale": 0.01,
+  "cut_height": 1500.0,
+  "walls": [
+    {"start": [0.0, 0.0],       "end": [5000.0, 0.0],    "thickness": 150.0, "height": 3000.0},
+    {"start": [5000.0, 0.0],    "end": [5000.0, 4000.0], "thickness": 150.0, "height": 3000.0},
+    {"start": [5000.0, 4000.0], "end": [0.0, 4000.0],    "thickness": 150.0, "height": 3000.0},
+    {"start": [0.0, 4000.0],    "end": [0.0, 0.0],       "thickness": 150.0, "height": 3000.0}
+  ]
+}

@@ -1,0 +1,21 @@
+[package]
+name = "ls-csg"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "BSP-based CSG (union / intersection / difference)"
+
+[lib]
+name = "csg"
+
+[lints]
+workspace = true
+
+# CSG now lives in the shared parametric-kernel (pk-csg). This crate is a
+# thin re-export shim so existing `use csg::...` sites keep working while
+# the implementation is shared with Mech Arena + future apps. The verbatim
+# source + the M2 wall-with-opening test moved to parametric-kernel/pk-csg.
+[dependencies]
+pk-csg.workspace = true

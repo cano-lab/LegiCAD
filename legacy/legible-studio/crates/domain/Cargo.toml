@@ -1,0 +1,21 @@
+[package]
+name = "ls-domain"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Domain types — port of the non-GPU half of types.hpp"
+
+[lib]
+name = "domain"
+
+[lints]
+workspace = true
+
+[dependencies]
+glam.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

@@ -1,0 +1,187 @@
+{
+  "name": "shed",
+  "width_m": 8.0,
+  "depth_m": 10.0,
+  "walls": [
+    {
+      "start": [
+        0,
+        0,
+        0
+      ],
+      "end": [
+        8000.0,
+        0,
+        0
+      ],
+      "height": 2700,
+      "category": "exterior"
+    },
+    {
+      "start": [
+        8000.0,
+        0,
+        0
+      ],
+      "end": [
+        8000.0,
+        0,
+        10000.0
+      ],
+      "height": 2700,
+      "category": "exterior"
+    },
+    {
+      "start": [
+        8000.0,
+        0,
+        10000.0
+      ],
+      "end": [
+        0,
+        0,
+        10000.0
+      ],
+      "height": 2700,
+      "category": "exterior"
+    },
+    {
+      "start": [
+        0,
+        0,
+        10000.0
+      ],
+      "end": [
+        0,
+        0,
+        0
+      ],
+      "height": 2700,
+      "category": "exterior"
+    },
+    {
+      "start": [
+        4800.0,
+        0,
+        0
+      ],
+      "end": [
+        4800.0,
+        0,
+        10000.0
+      ],
+      "height": 2700,
+      "category": "interior"
+    }
+  ],
+  "walls_batch": [
+    {
+      "start": [
+        0,
+        0,
+        0
+      ],
+      "end": [
+        8000.0,
+        0,
+        0
+      ],
+      "height": 2700,
+      "category": "exterior"
+    },
+    {
+      "start": [
+        8000.0,
+        0,
+        0
+      ],
+      "end": [
+        8000.0,
+        0,
+        10000.0
+      ],
+      "height": 2700,
+      "category": "exterior"
+    },
+    {
+      "start": [
+        8000.0,
+        0,
+        10000.0
+      ],
+      "end": [
+        0,
+        0,
+        10000.0
+      ],
+      "height": 2700,
+      "category": "exterior"
+    },
+    {
+      "start": [
+        0,
+        0,
+        10000.0
+      ],
+      "end": [
+        0,
+        0,
+        0
+      ],
+      "height": 2700,
+      "category": "exterior"
+    },
+    {
+      "start": [
+        4800.0,
+        0,
+        0
+      ],
+      "end": [
+        4800.0,
+        0,
+        10000.0
+      ],
+      "height": 2700,
+      "category": "interior"
+    }
+  ],
+  "doors": [
+    {
+      "wall_index": 0,
+      "offset": 2400.0,
+      "width": 914,
+      "height": 2134
+    }
+  ],
+  "windows": [
+    {
+      "wall_index": 2,
+      "offset": 4000.0,
+      "width": 1200,
+      "height": 1200
+    }
+  ],
+  "rooms": [
+    {
+      "name": "Living",
+      "room_type": "living",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 4800.0,
+        "height": 10000.0
+      }
+    },
+    {
+      "name": "Bedroom",
+      "room_type": "bedroom",
+      "bounds": {
+        "x": 4800.0,
+        "y": 0,
+        "width": 3200.0,
+        "height": 10000.0
+      }
+    }
+  ]
+}

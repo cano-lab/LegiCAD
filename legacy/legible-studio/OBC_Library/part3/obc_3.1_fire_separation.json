@@ -1,0 +1,19 @@
+{
+  "entries": [
+    {"occupancy_a": "residential", "occupancy_b": "business", "rating_hours": 2.0},
+    {"occupancy_a": "residential", "occupancy_b": "assembly", "rating_hours": 2.0},
+    {"occupancy_a": "residential", "occupancy_b": "industrial", "rating_hours": 2.0},
+    {"occupancy_a": "residential", "occupancy_b": "mercantile", "rating_hours": 2.0},
+    {"occupancy_a": "residential", "occupancy_b": "parking", "rating_hours": 2.0},
+    {"occupancy_a": "business", "occupancy_b": "assembly", "rating_hours": 1.5},
+    {"occupancy_a": "business", "occupancy_b": "industrial", "rating_hours": 2.0},
+    {"occupancy_a": "business", "occupancy_b": "mercantile", "rating_hours": 1.0},
+    {"occupancy_a": "business", "occupancy_b": "parking", "rating_hours": 2.0},
+    {"occupancy_a": "assembly", "occupancy_b": "industrial", "rating_hours": 2.0},
+    {"occupancy_a": "assembly", "occupancy_b": "mercantile", "rating_hours": 1.5},
+    {"occupancy_a": "assembly", "occupancy_b": "parking", "rating_hours": 2.0},
+    {"occupancy_a": "industrial", "occupancy_b": "mercantile", "rating_hours": 2.0},
+    {"occupancy_a": "industrial", "occupancy_b": "parking", "rating_hours": 2.0},
+    {"occupancy_a": "mercantile", "occupancy_b": "parking", "rating_hours": 2.0}
+  ]
+}

@@ -1,0 +1,56 @@
+[package]
+name = "ls-site"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+glam.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+# Blocking HTTP via rustls (no system OpenSSL dep). gzip handles compressed
+# tile responses from CDNs that fronts OSM.
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls", "gzip"] }
+# PNG decode — enable only the formats OSM actually serves.
+image = { version = "0.25", default-features = false, features = ["png"] }
+# Standard per-OS cache directory (~/.cache on Linux, %LOCALAPPDATA% on Windows).
+dirs = "5"
+# TIFF decoder for the GeoTIFF reader (single-band float32 Ontario DEMs).
+tiff = "0.10"
+# ZIP extraction for Ontario LiDAR package archives.
+zip = { version = "2", default-features = false, features = ["deflate"] }
+anyhow.workspace = true
+
+[[bin]]
+name = "legible-stitch"
+path = "src/bin/stitch.rs"
+
+[[bin]]
+name = "legible-fetch"
+path = "src/bin/fetch.rs"
+
+[[bin]]
+name = "legible-streets"
+path = "src/bin/streets.rs"
+
+[[bin]]
+name = "legible-footprint"
+path = "src/bin/footprint.rs"
+
+[[bin]]
+name = "legible-aswall"
+path = "src/bin/aswall.rs"
+
+[[bin]]
+name = "legible-elevation"
+path = "src/bin/elevation.rs"
+
+[[example]]
+name = "gen_synthetic_dem"
+path = "examples/gen_synthetic_dem.rs"

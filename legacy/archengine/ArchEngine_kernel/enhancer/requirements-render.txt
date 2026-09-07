@@ -1,0 +1,38 @@
+# RevitMCP AI Render Server - Production Dependencies
+#
+# Setup:
+#   python -m venv .venv-sd
+#   .venv-sd\Scripts\activate
+#   pip install -r requirements-render.txt
+#
+# For PyTorch with CUDA (do this first):
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+
+# === Core ===
+flask>=2.3.0
+flask-cors>=4.0.0
+numpy>=1.24.0
+Pillow>=10.0.0
+
+# === 3D/Geometry ===
+trimesh>=4.0.0
+warp-lang>=0.10.0
+
+# === AI/ML - Diffusers ===
+diffusers>=0.25.0
+transformers>=4.36.0
+accelerate>=0.25.0
+safetensors>=0.4.0
+xformers>=0.0.23
+peft>=0.7.0
+
+# === Image Processing ===
+scipy>=1.11.0
+opencv-python>=4.8.0
+
+# === Upscaling ===
+realesrgan>=0.3.0
+basicsr>=1.4.2
+
+# === ControlNet ===
+controlnet-aux>=0.0.7

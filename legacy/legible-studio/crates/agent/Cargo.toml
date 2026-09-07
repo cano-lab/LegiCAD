@@ -1,0 +1,29 @@
+[package]
+name = "ls-agent"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Agent/harness-facing OBC design runtime contracts and services"
+
+[lib]
+name = "agent"
+
+[lints]
+workspace = true
+
+[dependencies]
+ls-archgeometry.workspace = true
+ls-qbd.workspace = true
+ls-obc.workspace = true
+ls-drawing.workspace = true
+ls-solver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+base64 = "0.22"
+
+[dev-dependencies]
+glam.workspace = true

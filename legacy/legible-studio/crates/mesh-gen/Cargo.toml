@@ -1,0 +1,18 @@
+[package]
+name = "ls-mesh-gen"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Procedural mesh generators (beam, column, gable roof, etc.)"
+
+[lib]
+name = "mesh_gen"
+
+[lints]
+workspace = true
+
+[dependencies]
+glam.workspace = true
+ls-domain.workspace = true

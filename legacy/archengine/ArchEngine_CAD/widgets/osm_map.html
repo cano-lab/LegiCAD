@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        #map { width: 100vw; height: 100vh; }
+        .controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            max-width: 320px;
+        }
+        .controls h3 { margin: 0 0 10px 0; font-size: 16px; color: #333; }
+        .controls p { margin: 5px 0; font-size: 12px; color: #666; }
+        .controls button {
+            margin: 5px;
+            padding: 10px 16px;
+            cursor: pointer;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .controls button:hover { background: #45a049; }
+        .controls button.secondary { background: #6c757d; }
+        .controls button.secondary:hover { background: #5a6268; }
+        .controls button.success { background: #28a745; }
+        .controls button.success:hover { background: #218838; }
+        .info {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(0,0,0,0.85);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-size: 13px;
+            max-width: 500px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <h3>Property Boundary Tool</h3>
+        <p><strong>Instructions:</strong></p>
+        <p>1. Pan and zoom to find your property</p>
+        <p>2. Click "Start Drawing"</p>
+        <p>3. Click points around your property</p>
+        <p>4. Click "Finish" to complete</p>
+        <p>5. Click "Save & Close" when done</p>
+        <hr style="margin: 10px 0; border: none; border-top: 1px solid #ddd;">
+        <button onclick="startDrawing()">Start Drawing</button>
+        <button onclick="finishPolygon()" class="secondary">Finish</button>
+        <button onclick="clearBoundary()" class="secondary">Clear</button>
+        <button onclick="saveAndClose()" class="success">Save & Close</button>
+    </div>
+    <div id="map"></div>
+    <div class="info" id="info">Loading map...</div>
+
+    <script>
+        var map;
+        var drawnItems;
+        var polygonPoints = [];
+        var polygon = null;
+        var hasBoundary = false;
+        var lat = 45.421500;
+        var lng = -75.697200;
+        var zoom = 16;
+
+        // Initialize map
+        function initMap() {
+            // Create map centered on coordinates
+            map = L.map('map').setView([lat, lng], zoom);
+
+            // Add OpenStreetMap tile layer (free, no API key needed)
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(map);
+
+            // Add satellite layer (Esri World Imagery - free)
+            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri',
+                maxZoom: 19
+            }).addTo(map);
+
+            // Initialize drawn items layer
+            drawnItems = L.featureGroup().addTo(map);
+
+            updateInfo('Map loaded! Click Start Drawing to begin');
+        }
+
+        function startDrawing() {
+            if (polygon) {
+                clearBoundary();
+            }
+            updateInfo('Click on map to place boundary points. Click Finish when done.');
+            map.on('click', onMapClick);
+            map.doubleClickZoom.disable();
+        }
+
+        function onMapClick(e) {
+            var latlng = e.latlng;
+            polygonPoints.push(latlng);
+
+            // Add marker
+            var marker = L.circleMarker(latlng, {
+                radius: 5,
+                fillColor: '#00FF00',
+                fillOpacity: 0.8,
+                color: '#FFFFFF',
+                weight: 2
+            }).addTo(drawnItems);
+
+            // Update polygon if we have enough points
+            if (polygonPoints.length >= 2) {
+                if (polygon) {
+                    drawnItems.removeLayer(polygon);
+                }
+                polygon = L.polygon(polygonPoints, {
+                    color: '#00FF00',
+                    fillColor: '#00FF00',
+                    fillOpacity: 0.2,
+                    weight: 3
+                }).addTo(drawnItems);
+            }
+
+            updateInfo('Points: ' + polygonPoints.length + ' (click Finish when done)');
+        }
+
+        function finishPolygon() {
+            if (polygonPoints.length < 3) {
+                updateInfo('Need at least 3 points for a boundary!');
+                return;
+            }
+
+            map.off('click', onMapClick);
+            map.doubleClickZoom.enable();
+
+            hasBoundary = true;
+
+            // Get bounds
+            var bounds = L.latLngBounds(polygonPoints);
+            var latMin = bounds.getSouth();
+            var latMax = bounds.getNorth();
+            var lngMin = bounds.getWest();
+            var lngMax = bounds.getEast();
+
+            // Calculate approximate dimensions
+            var latDiff = latMax - latMin;
+            var lngDiff = lngMax - lngMin;
+            var widthFt = Math.abs(latDiff) * 364000;
+            var depthFt = Math.abs(lngDiff) * 364000 * 0.7071;
+            var area = widthFt * depthFt;
+
+            updateInfo('Property: ' + widthFt.toFixed(0) + "' x " + depthFt.toFixed(0) + "' = " + area.toFixed(0) + " sq ft - Click Save & Close");
+
+            // Store boundary data
+            window.boundaryData = {
+                latMin: latMin,
+                latMax: latMax,
+                lngMin: lngMin,
+                lngMax: lngMax,
+                widthFt: widthFt,
+                depthFt: depthFt
+            };
+        }
+
+        function clearBoundary() {
+            drawnItems.clearLayers();
+            polygon = null;
+            polygonPoints = [];
+            hasBoundary = false;
+            window.boundaryData = null;
+            map.off('click', onMapClick);
+            map.doubleClickZoom.enable();
+            updateInfo('Boundary cleared. Click Start Drawing to begin.');
+        }
+
+        function saveAndClose() {
+            if (!hasBoundary || !window.boundaryData) {
+                updateInfo('Please draw a boundary first!');
+                return;
+            }
+
+            var b = window.boundaryData;
+
+            // Call Python API with boundary data
+            if (pywebview && pywebview.api && pywebview.api.set_boundary) {
+                pywebview.api.set_boundary(b.latMin, b.latMax, b.lngMin, b.lngMax, b.widthFt, b.depthFt);
+                updateInfo('Boundary saved! Closing...');
+                setTimeout(function() {
+                    if (pywebview.api.save_and_close) {
+                        pywebview.api.save_and_close();
+                    } else {
+                        window.close();
+                    }
+                }, 500);
+            } else {
+                updateInfo('Saving... (window will close automatically)');
+                console.log('Boundary data:', b);
+                // For testing - would normally save and close
+                setTimeout(function() { window.close(); }, 1000);
+            }
+        }
+
+        function updateInfo(text) {
+            document.getElementById('info').textContent = text;
+        }
+
+        // Initialize on load
+        window.onload = function() {
+            initMap();
+        };
+    </script>
+</body>
+</html>

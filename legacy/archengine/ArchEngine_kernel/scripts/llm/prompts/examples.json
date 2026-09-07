@@ -1,0 +1,73 @@
+{
+  "examples": [
+    {
+      "input": "small 1 bedroom studio apartment 400 sqft",
+      "output": {
+        "success": true,
+        "width": 6100,
+        "depth": 6100,
+        "sqft": 400,
+        "walls_batch": [
+          {"index": 0, "start": [0, 0, 0], "end": [6100, 0, 0], "height": 2700, "category": "exterior"},
+          {"index": 1, "start": [6100, 0, 0], "end": [6100, 0, 6100], "height": 2700, "category": "exterior"},
+          {"index": 2, "start": [6100, 0, 6100], "end": [0, 0, 6100], "height": 2700, "category": "exterior"},
+          {"index": 3, "start": [0, 0, 6100], "end": [0, 0, 0], "height": 2700, "category": "exterior"},
+          {"index": 4, "start": [0, 0, 4000], "end": [2500, 0, 4000], "height": 2700, "category": "interior"},
+          {"index": 5, "start": [2500, 0, 4000], "end": [2500, 0, 6100], "height": 2700, "category": "interior"}
+        ],
+        "doors": [
+          {"wall_index": 0, "offset": 2500, "width": 914, "height": 2134, "swing": "left_in"},
+          {"wall_index": 4, "offset": 800, "width": 762, "height": 2032, "swing": "right_in"}
+        ],
+        "windows": [
+          {"wall_index": 1, "offset": 1500, "width": 1200, "height": 1200, "sill_height": 900},
+          {"wall_index": 2, "offset": 2000, "width": 1500, "height": 1200, "sill_height": 900}
+        ],
+        "rooms": {
+          "room_main": {"name": "Living/Bedroom", "room_type": "studio", "bounds": {"x": 0, "z": 0, "width": 6100, "height": 4000}, "area": 26.2},
+          "room_bath": {"name": "Bathroom", "room_type": "bathroom", "bounds": {"x": 0, "z": 4000, "width": 2500, "height": 2100}, "area": 5.6},
+          "room_kitchen": {"name": "Kitchen", "room_type": "kitchen", "bounds": {"x": 2500, "z": 4000, "width": 3600, "height": 2100}, "area": 8.1}
+        }
+      }
+    },
+    {
+      "input": "2 bedroom 1 bath cottage 800 sqft",
+      "output": {
+        "success": true,
+        "width": 9144,
+        "depth": 8230,
+        "sqft": 800,
+        "walls_batch": [
+          {"index": 0, "start": [0, 0, 0], "end": [9144, 0, 0], "height": 2700, "category": "exterior"},
+          {"index": 1, "start": [9144, 0, 0], "end": [9144, 0, 8230], "height": 2700, "category": "exterior"},
+          {"index": 2, "start": [9144, 0, 8230], "end": [0, 0, 8230], "height": 2700, "category": "exterior"},
+          {"index": 3, "start": [0, 0, 8230], "end": [0, 0, 0], "height": 2700, "category": "exterior"},
+          {"index": 4, "start": [0, 0, 4115], "end": [4572, 0, 4115], "height": 2700, "category": "interior"},
+          {"index": 5, "start": [4572, 0, 4115], "end": [4572, 0, 0], "height": 2700, "category": "interior"},
+          {"index": 6, "start": [4572, 0, 4115], "end": [4572, 0, 8230], "height": 2700, "category": "interior"},
+          {"index": 7, "start": [4572, 0, 6172], "end": [9144, 0, 6172], "height": 2700, "category": "interior"}
+        ],
+        "doors": [
+          {"wall_index": 0, "offset": 6000, "width": 914, "height": 2134, "swing": "left_in"},
+          {"wall_index": 4, "offset": 1500, "width": 762, "height": 2032, "swing": "right_in"},
+          {"wall_index": 5, "offset": 1500, "width": 762, "height": 2032, "swing": "left_in"},
+          {"wall_index": 6, "offset": 1500, "width": 762, "height": 2032, "swing": "right_in"},
+          {"wall_index": 7, "offset": 1500, "width": 762, "height": 2032, "swing": "left_in"}
+        ],
+        "windows": [
+          {"wall_index": 0, "offset": 1500, "width": 1200, "height": 1200, "sill_height": 900},
+          {"wall_index": 1, "offset": 1500, "width": 1200, "height": 1200, "sill_height": 900},
+          {"wall_index": 2, "offset": 3500, "width": 1500, "height": 1200, "sill_height": 900},
+          {"wall_index": 3, "offset": 1500, "width": 1200, "height": 1200, "sill_height": 900}
+        ],
+        "rooms": {
+          "room_living": {"name": "Living Room", "room_type": "living", "bounds": {"x": 4572, "z": 0, "width": 4572, "height": 4115}, "area": 20.2},
+          "room_bedroom1": {"name": "Master Bedroom", "room_type": "bedroom", "bounds": {"x": 0, "z": 0, "width": 4572, "height": 4115}, "area": 20.2},
+          "room_bedroom2": {"name": "Bedroom 2", "room_type": "bedroom", "bounds": {"x": 0, "z": 4115, "width": 4572, "height": 4115}, "area": 20.2},
+          "room_kitchen": {"name": "Kitchen", "room_type": "kitchen", "bounds": {"x": 4572, "z": 4115, "width": 4572, "height": 2057}, "area": 10.1},
+          "room_bath": {"name": "Bathroom", "room_type": "bathroom", "bounds": {"x": 4572, "z": 6172, "width": 4572, "height": 2058}, "area": 10.1}
+        }
+      }
+    }
+  ]
+}

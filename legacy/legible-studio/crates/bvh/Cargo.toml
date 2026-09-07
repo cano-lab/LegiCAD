@@ -1,0 +1,19 @@
+[package]
+name = "ls-bvh"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "SAH-based BVH builder (CPU; GPU node format lives in renderer crate)"
+
+[lib]
+name = "bvh"
+
+[lints]
+workspace = true
+
+[dependencies]
+glam.workspace = true
+bytemuck.workspace = true
+ls-domain.workspace = true

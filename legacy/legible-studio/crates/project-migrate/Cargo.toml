@@ -1,0 +1,20 @@
+[package]
+name = "ls-project-migrate"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "One-shot binary: split legacy one-file project.json into project.json + project.render.json"
+
+[[bin]]
+name = "project-migrate"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
