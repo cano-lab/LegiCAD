@@ -1,11 +1,7 @@
-# LegiCAD (Legible Engine)
+# LegiCAD
 
-**Generative design platform for housing — starting in Sudbury, Ontario.**
-
-> Question-based design meets regime architecture in parametric space.  
-> The rules come first. You sculpt within what's possible.
-
-**Name:** LegiCAD — *Computer Assisted Design, as it should be.*
+> **LegiCAD — Computer Assisted Design, as it should be.**  
+> Parametric massing from regulated space. Human choice from statistical constraint.
 
 ---
 

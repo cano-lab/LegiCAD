@@ -1,11 +1,12 @@
-# LegiCAD / Legible Engine — Vision Document
+# LegiCAD — Vision Document
+
+> **LegiCAD — Computer Assisted Design, as it should be.**  
+> Parametric massing from regulated space. Human choice from statistical constraint.
 
 **Version:** 1.0  
 **Date:** September 8, 2026  
 **Author:** Jer  
 **Context:** Legible Studio pivot from permit-document generator to generative design platform
-
-**Name:** LegiCAD — *Computer Assisted Design, as it should be.*
 
 ---
 

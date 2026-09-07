@@ -1,4 +1,7 @@
-# Legible Engine — Quick Start
+# LegiCAD — Quick Start
+
+> **LegiCAD — Computer Assisted Design, as it should be.**  
+> Parametric massing from regulated space. Human choice from statistical constraint.
 
 **When you're ready to begin.**
 
