@@ -128,6 +128,16 @@ fn run() -> Result<()> {
     if !tracer.set_scene(&elements, None, &materials)? {
         bail!("scene produced no geometry");
     }
+
+    // Polyhaven texture array (descriptor 6) + per-element texture indices —
+    // C++ arch_api: loadMaterialTextures then updateMaterialTextureIndices
+    // after setScene. Falls back to flat material colors when no texture
+    // set is found under --materials.
+    if tracer.load_material_textures(&materials_dir)? {
+        tracer.update_material_texture_indices(&elements);
+        println!("archrender: polyhaven textures bound");
+    }
+
     tracer.set_camera(camera);
 
     let t0 = std::time::Instant::now();

@@ -7,10 +7,12 @@
 //! designed for this shader and port verbatim.
 //!
 //! Deferred from the C++ (tracked in the port notes):
-//! - Polyhaven texture array (`loadMaterialTextures`) — materials currently
-//!   carry flat albedo/roughness from the material table.
 //! - OIDN denoising — the C++ only ships the 3×3 edge-aware CPU filter,
 //!   which is ported verbatim.
+//!
+//! The Polyhaven texture array (`loadMaterialTextures` /
+//! `updateMaterialTextureIndices`) lives in [`super::textures`] and is
+//! bound at descriptor 6 via [`Self::load_material_textures`].
 //!
 //! Unlike the C++, descriptor bindings 5 (env map) and 6 (texture array)
 //! are always written with valid placeholder textures (a 1×1 cubemap / 2D
@@ -29,6 +31,7 @@ use archengine_geometry::domain::{StructuralElement, TerrainMesh};
 
 use super::context::VulkanContext;
 use super::environment::EnvironmentMap;
+use super::textures::{TextureArray, polyhaven_color, resolve_material_name};
 use crate::camera::Camera;
 
 /// SPIR-V for `path_trace.comp`, compiled from the verbatim GLSL by build.rs.
@@ -275,6 +278,13 @@ pub struct PathTracer<'ctx> {
     placeholder_cube: Option<EnvironmentMap>,
     placeholder_tex_array: Option<PlaceholderTextureArray>,
 
+    /// Polyhaven texture array (descriptor 6) — C++ `m_textureArray` /
+    /// `m_texturesLoaded`.
+    textures: Option<TextureArray>,
+    /// Terrain material name kept for `update_material_texture_indices`
+    /// (C++ `m_terrainMaterialName`).
+    terrain_material_name: String,
+
     hdr_pixels: Vec<f32>,
     ldr_pixels: Vec<u8>,
 
@@ -303,6 +313,8 @@ impl<'ctx> PathTracer<'ctx> {
             env_rotation: 0.0,
             placeholder_cube: None,
             placeholder_tex_array: None,
+            textures: None,
+            terrain_material_name: String::new(),
             hdr_pixels: Vec::new(),
             ldr_pixels: Vec::new(),
             progress_callback: None,
@@ -383,6 +395,115 @@ impl<'ctx> PathTracer<'ctx> {
         Ok(())
     }
 
+    /// C++ `loadMaterialTextures` — load the Polyhaven texture array from
+    /// `materials_dir` and bind it at descriptor 6. Returns `Ok(false)`
+    /// when no textures were found (the C++ returns `false`; the caller
+    /// then keeps the flat material colors). If a render is in progress
+    /// its descriptor set is rewritten under `wait_idle`.
+    pub fn load_material_textures(&mut self, materials_dir: &Path) -> Result<bool> {
+        let Some(array) = TextureArray::load(self.ctx, materials_dir)? else {
+            return Ok(false);
+        };
+        self.textures = Some(array);
+        if let Some(render) = &self.render {
+            self.ctx.wait_idle();
+            let tex = self.textures.as_ref().unwrap();
+            let info = [tex.descriptor_info()];
+            let write = [vk::WriteDescriptorSet::default()
+                .dst_set(render.descriptor_set)
+                .dst_binding(6)
+                .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                .image_info(&info)];
+            unsafe { self.ctx.device().update_descriptor_sets(&write, &[]) };
+        }
+        Ok(true)
+    }
+
+    /// C++ `updateMaterialTextureIndices` — resolve each element's material
+    /// to a Polyhaven texture, write the layer index into `tex_indices.x`
+    /// (preserving the `.w` terrain flag), refresh albedo/glass properties,
+    /// and re-upload the host-visible material buffer.
+    pub fn update_material_texture_indices(&mut self, elements: &[StructuralElement]) {
+        let Some(textures) = &self.textures else {
+            tracing::warn!("[PathTracer] update_material_texture_indices: textures not loaded");
+            return;
+        };
+        let Some(scene) = &mut self.scene else {
+            tracing::warn!("[PathTracer] update_material_texture_indices: no materials");
+            return;
+        };
+
+        let mut num_updated = 0usize;
+        let count = elements.len().min(scene.materials.len());
+        for (i, elem) in elements.iter().take(count).enumerate() {
+            let mat_name = resolve_material_name(elem);
+            let tex_index = textures.get_texture_index(&mat_name);
+
+            // Always update albedo color to match resolved material.
+            scene.materials[i].albedo = polyhaven_color(&mat_name);
+
+            // Glass material properties (C++: very smooth, IOR 1.5,
+            // high transmission).
+            if mat_name.contains("glass") {
+                scene.materials[i].properties.x = 0.02;
+                scene.materials[i].properties.y = 0.0;
+                scene.materials[i].properties.z = 1.5;
+                scene.materials[i].properties.w = 0.95;
+            }
+
+            if tex_index >= 0 {
+                scene.materials[i].tex_indices.x = tex_index as f32;
+                num_updated += 1;
+            }
+        }
+
+        // Terrain material sits after all element materials (C++: same).
+        if scene.materials.len() > elements.len() && !self.terrain_material_name.is_empty() {
+            let terrain_mat_index = elements.len();
+            let tex_index = textures.get_texture_index(&self.terrain_material_name);
+            if tex_index >= 0 {
+                scene.materials[terrain_mat_index].tex_indices.x = tex_index as f32;
+                num_updated += 1;
+            } else {
+                tracing::warn!(
+                    name = self.terrain_material_name,
+                    "[PathTracer] terrain texture not found in loaded textures"
+                );
+            }
+        }
+
+        tracing::info!(num_updated, "[PathTracer] updated material texture indices");
+
+        // Re-upload the material buffer (HOST_VISIBLE + HOST_COHERENT).
+        if num_updated > 0
+            && let Some(buffers) = &self.scene_buffers
+        {
+            let size = std::mem::size_of_val(&scene.materials[..]) as vk::DeviceSize;
+            unsafe {
+                let device = self.ctx.device();
+                let data = device.map_memory(
+                    buffers.material_memory,
+                    0,
+                    size,
+                    vk::MemoryMapFlags::empty(),
+                );
+                match data {
+                    Ok(ptr) => {
+                        std::ptr::copy_nonoverlapping(
+                            scene.materials.as_ptr().cast::<u8>(),
+                            ptr.cast::<u8>(),
+                            size as usize,
+                        );
+                        device.unmap_memory(buffers.material_memory);
+                    }
+                    Err(e) => {
+                        tracing::error!(error = %e, "[PathTracer] failed to re-map material buffer")
+                    }
+                }
+            }
+        }
+    }
+
     /// Build the scene BVH and upload triangle/node/material buffers.
     /// Mirrors C++ `setScene(elements, terrain, terrainMaterialName)`;
     /// returns `Ok(false)` where the C++ returns `false`.
@@ -399,6 +520,10 @@ impl<'ctx> PathTracer<'ctx> {
                 return Ok(false);
             }
         };
+        self.terrain_material_name = terrain
+            .as_ref()
+            .map(|(_, name)| (*name).to_string())
+            .unwrap_or_default();
         tracing::info!(
             triangles = scene.triangles.len(),
             nodes = scene.nodes.len(),
@@ -813,11 +938,14 @@ impl<'ctx> PathTracer<'ctx> {
                 .expect("placeholders created")
                 .descriptor_info(),
         }];
-        let tex_array_info = [self
-            .placeholder_tex_array
-            .as_ref()
-            .expect("placeholders created")
-            .descriptor_info()];
+        let tex_array_info = [match &self.textures {
+            Some(textures) => textures.descriptor_info(),
+            None => self
+                .placeholder_tex_array
+                .as_ref()
+                .expect("placeholders created")
+                .descriptor_info(),
+        }];
         let writes = [
             vk::WriteDescriptorSet::default()
                 .dst_set(descriptor_set)
@@ -1235,6 +1363,10 @@ impl Drop for PathTracer<'_> {
         if let Some(tex) = self.placeholder_tex_array.take() {
             self.ctx.wait_idle();
             tex.destroy(self.ctx);
+        }
+        if let Some(textures) = self.textures.take() {
+            self.ctx.wait_idle();
+            textures.destroy(self.ctx);
         }
     }
 }

@@ -30,7 +30,7 @@ ash-window = "0.13"
 raw-window-handle = "0.6"
 winit = "0.30"
 shaderc = "0.10"
-image = { version = "0.25", default-features = false, features = ["png", "hdr"] }
+image = { version = "0.25", default-features = false, features = ["png", "hdr", "jpeg"] }
 
 # Solver — to be decided (good_lp + CBC, or custom)
 # good_lp = "1"
