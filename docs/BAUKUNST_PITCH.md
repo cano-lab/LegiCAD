@@ -86,6 +86,8 @@ We need:
 
 In return, you get a team that ships — not slides, not prototypes, but bootable kernels, running classrooms, and voice assistants that answer to "Hey Five" at 3 AM without calling Google.
 
+> **Note on silicon:** We will eventually design custom silicon optimized for the SemOS security model. That's a Series A problem. Pre-seed is about proving the stack on commodity hardware.
+
 ---
 
 ### The Ask
