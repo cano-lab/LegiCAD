@@ -76,6 +76,26 @@ The homeschool segment alone is underserved — they already distrust cloud plat
 
 ---
 
+### The Bootstrapped Path (Before Pre-Seed)
+
+We're not waiting for funding to validate demand.
+
+**Phase 0: Hand-built prototypes (Now - Month 3)**
+- 5-10 units using off-the-shelf SBCs (Orange Pi 5 Plus, N100 mini-PCs) in custom 3D-printed enclosures
+- Sell to early adopters at cost (~$600-800) or slight margin
+- Gather feedback on SemOS, Almanach, Five integration
+- Prove the stack works in real homes
+
+**What this proves before we raise:**
+- People will pay for a local AI home computer
+- The software stack is stable enough for non-technical users
+- We can source and assemble hardware without a factory
+- Demand signal for Baukunst to evaluate
+
+**Then pre-seed ($500K) becomes:** Scale the 10-unit proof into a 500-unit production run with proper tooling, hired hardware lead, and polished industrial design.
+
+---
+
 ### Why Baukunst
 
 You're the only pre-seed fund that treats hardware as a design discipline, not a supply-chain problem.
