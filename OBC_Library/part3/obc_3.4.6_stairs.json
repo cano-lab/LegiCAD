@@ -1,0 +1,10 @@
+{
+  "entries": [
+    {"occupancy": "residential", "min_width_mm": 1100, "max_riser_mm": 180, "min_tread_mm": 250},
+    {"occupancy": "business", "min_width_mm": 1100, "max_riser_mm": 180, "min_tread_mm": 280},
+    {"occupancy": "assembly", "min_width_mm": 1100, "max_riser_mm": 180, "min_tread_mm": 280},
+    {"occupancy": "industrial", "min_width_mm": 1000, "max_riser_mm": 190, "min_tread_mm": 250},
+    {"occupancy": "mercantile", "min_width_mm": 1100, "max_riser_mm": 180, "min_tread_mm": 280},
+    {"occupancy": "parking", "min_width_mm": 1000, "max_riser_mm": 180, "min_tread_mm": 280}
+  ]
+}

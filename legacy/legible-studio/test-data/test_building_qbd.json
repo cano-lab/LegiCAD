@@ -1,0 +1,22 @@
+{
+  "success": true,
+  "width": 9144,
+  "depth": 12192,
+  "sqft": 1200,
+  "walls_batch": [
+    {"start": [0, 0, 0], "end": [9144, 0, 0], "height": 3048, "wall_type": "brick", "category": "exterior"},
+    {"start": [9144, 0, 0], "end": [9144, 0, 12192], "height": 3048, "wall_type": "brick", "category": "exterior"},
+    {"start": [9144, 0, 12192], "end": [0, 0, 12192], "height": 3048, "wall_type": "brick", "category": "exterior"},
+    {"start": [0, 0, 12192], "end": [0, 0, 0], "height": 3048, "wall_type": "brick", "category": "exterior"},
+    {"start": [0, 3048, 0], "end": [9144, 3048, 0], "height": 3048, "wall_type": "brick", "category": "exterior"},
+    {"start": [9144, 3048, 0], "end": [9144, 3048, 12192], "height": 3048, "wall_type": "brick", "category": "exterior"},
+    {"start": [9144, 3048, 12192], "end": [0, 3048, 12192], "height": 3048, "wall_type": "brick", "category": "exterior"},
+    {"start": [0, 3048, 12192], "end": [0, 3048, 0], "height": 3048, "wall_type": "brick", "category": "exterior"}
+  ],
+  "floors_batch": [
+    {"start": [0, 0, 0], "end": [9144, 0, 12192], "thickness": 200, "level_name": "Level 1"},
+    {"start": [0, 3048, 0], "end": [9144, 3048, 12192], "thickness": 200, "level_name": "Level 2"},
+    {"start": [0, 6096, 0], "end": [9144, 6096, 12192], "thickness": 200, "level_name": "Roof"}
+  ],
+  "rooms": []
+}

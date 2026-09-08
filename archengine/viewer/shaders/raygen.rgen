@@ -1,0 +1,89 @@
+#version 460
+#extension GL_EXT_ray_tracing : require
+
+layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
+layout(binding = 1, set = 0, rgba32f) uniform image2D outputImage;
+layout(binding = 2, set = 0) uniform CameraUBO {
+    mat4 viewInverse;
+    mat4 projInverse;
+    mat4 prevViewProj;
+    vec4 lightDir;
+    vec4 cameraPos;
+    uint frameCount;
+    uint sampleCount;
+    float time;
+    float exposure;
+    uint enableDenoising;
+    float denoiseStrength;
+    float pad[2];
+} camera;
+
+layout(location = 0) rayPayloadEXT vec3 hitValue;
+layout(location = 1) rayPayloadEXT bool isShadowed;
+
+// Hash function for random sampling
+uint hash(uint x) {
+    x ^= x >> 16;
+    x *= 0x85ebca6bu;
+    x ^= x >> 13;
+    x *= 0xc2b2ae35u;
+    x ^= x >> 16;
+    return x;
+}
+
+float random(inout uint seed) {
+    seed = hash(seed);
+    return float(seed) / float(0xFFFFFFFFu);
+}
+
+void main() {
+    // Seed random based on pixel and frame
+    uint seed = hash(gl_LaunchIDEXT.x + gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + camera.frameCount * 1000000u);
+
+    // Jittered pixel position for anti-aliasing
+    vec2 jitter = vec2(random(seed), random(seed)) - 0.5;
+    const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5) + jitter * 0.5;
+    const vec2 inUV = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
+    vec2 d = inUV * 2.0 - 1.0;
+
+    // Calculate ray origin and direction from camera matrices
+    vec4 origin = camera.viewInverse * vec4(0, 0, 0, 1);
+    vec4 target = camera.projInverse * vec4(d.x, d.y, 1, 1);
+    vec4 direction = camera.viewInverse * vec4(normalize(target.xyz), 0);
+
+    float tmin = 0.001;
+    float tmax = 10000.0;
+
+    hitValue = vec3(0.0);
+
+    // Trace primary ray
+    traceRayEXT(
+        topLevelAS,           // acceleration structure
+        gl_RayFlagsOpaqueEXT, // rayFlags
+        0xFF,                 // cullMask
+        0,                    // sbtRecordOffset (hit group index)
+        0,                    // sbtRecordStride
+        0,                    // missIndex
+        origin.xyz,           // ray origin
+        tmin,                 // ray min range
+        direction.xyz,        // ray direction
+        tmax,                 // ray max range
+        0                     // payload location
+    );
+
+    // Apply exposure
+    vec3 color = hitValue * camera.exposure;
+
+    // Simple Reinhard tonemapping for display
+    color = color / (color + vec3(1.0));
+
+    // Load previous frame for accumulation (if denoising is disabled)
+    if (camera.enableDenoising == 0 && camera.frameCount > 0) {
+        vec3 prevColor = imageLoad(outputImage, ivec2(gl_LaunchIDEXT.xy)).rgb;
+        float weight = 1.0 / float(camera.frameCount + 1);
+        color = mix(prevColor, color, weight);
+    }
+
+    // Store result
+    imageStore(outputImage, ivec2(gl_LaunchIDEXT.xy), vec4(color, 1.0));
+}

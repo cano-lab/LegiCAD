@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Revit MCP Chat - SSE Demo</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        h1 {
+            color: #00d4ff;
+            text-align: center;
+        }
+        .chat-container {
+            background: #16213e;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        #messages {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #0f3460;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background: #0f0f23;
+        }
+        .message {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        .user-message {
+            background: #0f3460;
+            margin-left: 20%;
+        }
+        .assistant-message {
+            background: #1a1a2e;
+            margin-right: 20%;
+            border: 1px solid #0f3460;
+        }
+        #progress-container {
+            background: #0f0f23;
+            border: 1px solid #0f3460;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            min-height: 100px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .progress-item {
+            padding: 5px 10px;
+            margin: 3px 0;
+            background: #1a1a2e;
+            border-radius: 4px;
+            font-size: 14px;
+            border-left: 3px solid #00d4ff;
+        }
+        .progress-item.tool {
+            border-left-color: #ffd700;
+        }
+        .progress-item.complete {
+            border-left-color: #00ff88;
+            background: #0a2a1a;
+        }
+        .progress-item.error {
+            border-left-color: #ff4444;
+            background: #2a0a0a;
+        }
+        #input-container {
+            display: flex;
+            gap: 10px;
+        }
+        #user-input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #0f3460;
+            border-radius: 8px;
+            background: #0f0f23;
+            color: #eee;
+            font-size: 14px;
+        }
+        #user-input:focus {
+            outline: none;
+            border-color: #00d4ff;
+        }
+        button {
+            padding: 12px 25px;
+            background: #00d4ff;
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #00a8cc;
+        }
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+        #status {
+            text-align: center;
+            padding: 10px;
+            font-size: 14px;
+            color: #888;
+        }
+        #status.connected {
+            color: #00ff88;
+        }
+        #status.processing {
+            color: #ffd700;
+        }
+        #status.error {
+            color: #ff4444;
+        }
+        .usage-info {
+            font-size: 12px;
+            color: #888;
+            margin-top: 10px;
+            padding: 10px;
+            background: #0f0f23;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🏗️ Revit MCP Chat</h1>
+    
+    <div class="chat-container">
+        <div id="messages"></div>
+        
+        <h3 style="color: #00d4ff; margin-bottom: 10px;">📡 Live Progress</h3>
+        <div id="progress-container">
+            <div style="color: #666;">Progress updates will appear here...</div>
+        </div>
+        
+        <div id="input-container">
+            <input type="text" id="user-input" placeholder="Ask Claude to help with Revit..." />
+            <button id="send-btn" onclick="sendMessage()">Send</button>
+            <button onclick="clearChat()" style="background: #444;">Clear</button>
+        </div>
+        
+        <div id="status">Ready</div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8000';
+        let history = [];
+        let eventSource = null;
+
+        // Send message using SSE streaming
+        async function sendMessage() {
+            const input = document.getElementById('user-input');
+            const message = input.value.trim();
+            if (!message) return;
+
+            // Add user message to chat
+            addMessage(message, 'user');
+            input.value = '';
+            
+            // Clear and prepare progress
+            document.getElementById('progress-container').innerHTML = '';
+            document.getElementById('send-btn').disabled = true;
+            setStatus('processing', '🔄 Processing...');
+
+            try {
+                // Use SSE streaming endpoint
+                const response = await fetch(`${API_URL}/chat/stream`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        history: history
+                    })
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    
+                    // Process SSE events
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // Keep incomplete line in buffer
+
+                    for (const line of lines) {
+                        if (line.startsWith('event:')) {
+                            currentEvent = line.slice(6).trim();
+                        } else if (line.startsWith('data:')) {
+                            const data = line.slice(5).trim();
+                            if (data && currentEvent) {
+                                handleSSEEvent(currentEvent, data);
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                setStatus('error', `❌ Error: ${error.message}`);
+                addProgress(`❌ Connection error: ${error.message}`, 'error');
+            }
+
+            document.getElementById('send-btn').disabled = false;
+        }
+
+        let currentEvent = '';
+
+        function handleSSEEvent(event, data) {
+            try {
+                if (event === 'keepalive') return;
+                
+                const parsed = JSON.parse(data);
+                
+                if (event === 'progress') {
+                    const msg = parsed.message || JSON.stringify(parsed);
+                    const isToolCall = parsed.tool || msg.includes('🛠️');
+                    addProgress(msg, isToolCall ? 'tool' : 'normal');
+                } else if (event === 'done') {
+                    // Final response
+                    if (parsed.reply) {
+                        addMessage(parsed.reply, 'assistant');
+                        history.push({ role: 'user', content: document.querySelector('.user-message:last-child')?.textContent || '' });
+                        history.push({ role: 'assistant', content: parsed.reply });
+                    }
+                    if (parsed.usage) {
+                        showUsage(parsed.usage);
+                    }
+                    setStatus('connected', '✅ Complete');
+                } else if (event === 'error') {
+                    addProgress(parsed.error || 'Unknown error', 'error');
+                    setStatus('error', '❌ Error occurred');
+                }
+            } catch (e) {
+                console.log('Parse error:', e, data);
+            }
+        }
+
+        function addMessage(text, role) {
+            const container = document.getElementById('messages');
+            const div = document.createElement('div');
+            div.className = `message ${role}-message`;
+            div.textContent = text;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function addProgress(text, type = 'normal') {
+            const container = document.getElementById('progress-container');
+            // Remove placeholder if exists
+            if (container.querySelector('div[style]')) {
+                container.innerHTML = '';
+            }
+            const div = document.createElement('div');
+            div.className = `progress-item ${type}`;
+            div.textContent = text;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function showUsage(usage) {
+            const container = document.getElementById('messages');
+            const div = document.createElement('div');
+            div.className = 'usage-info';
+            div.innerHTML = `
+                📊 <strong>Usage:</strong> 
+                Input: ${usage.input_tokens?.toLocaleString() || 0} | 
+                Output: ${usage.output_tokens?.toLocaleString() || 0} | 
+                Total: ${usage.total_tokens?.toLocaleString() || 0} tokens | 
+                Tool Calls: ${usage.tool_calls || 0}
+            `;
+            container.appendChild(div);
+        }
+
+        function setStatus(type, text) {
+            const status = document.getElementById('status');
+            status.className = type;
+            status.textContent = text;
+        }
+
+        function clearChat() {
+            document.getElementById('messages').innerHTML = '';
+            document.getElementById('progress-container').innerHTML = '<div style="color: #666;">Progress updates will appear here...</div>';
+            history = [];
+            setStatus('', 'Ready');
+        }
+
+        // Handle Enter key
+        document.getElementById('user-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,94 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/domain",
+    "crates/archgeometry",
+    "crates/csg",
+    "crates/bvh",
+    "crates/wall-system",
+    "crates/mesh-gen",
+    "crates/geometry-loader",
+    "crates/obc",
+    "crates/drawing",
+    "crates/qbd",
+    "crates/agent",
+    "crates/api",
+    "crates/mcp",
+    "crates/project-migrate",
+    "crates/app",
+    "crates/catalog",
+    "crates/solver",
+    "crates/site",
+    "smoke-test",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+license = "MIT"
+authors = ["Jerroy"]
+repository = "https://github.com/jerroy/LegibleStudios"
+
+[workspace.dependencies]
+# Math
+glam = { version = "0.29", features = ["serde", "bytemuck"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Errors
+thiserror = "2"
+anyhow = "1"
+
+# Bytes / GPU layouts (used later by renderer crate and BVH GPU node format)
+bytemuck = { version = "1", features = ["derive"] }
+
+# Shared parametric-kernel (sibling repo — see docs/PARAMETRIC_KERNEL_SPEC.md).
+# Path deps for co-development; pin to a git tag once the kernel stabilises.
+pk-geom = { path = "../../parametric-kernel/crates/pk-geom" }
+pk-primitives = { path = "../../parametric-kernel/crates/pk-primitives" }
+pk-csg = { path = "../../parametric-kernel/crates/pk-csg" }
+pk-object = { path = "../../parametric-kernel/crates/pk-object" }
+pk-surface = { path = "../../parametric-kernel/crates/pk-surface" }
+pk-surface-winit = { path = "../../parametric-kernel/crates/pk-surface-winit" }
+
+# Internal crates
+ls-domain = { path = "crates/domain" }
+ls-archgeometry = { path = "crates/archgeometry" }
+ls-csg = { path = "crates/csg" }
+ls-bvh = { path = "crates/bvh" }
+ls-wall-system = { path = "crates/wall-system" }
+ls-mesh-gen = { path = "crates/mesh-gen" }
+ls-geometry-loader = { path = "crates/geometry-loader" }
+ls-obc = { path = "crates/obc" }
+ls-drawing = { path = "crates/drawing" }
+ls-qbd = { path = "crates/qbd" }
+ls-agent = { path = "crates/agent" }
+ls-api = { path = "crates/api" }
+ls-mcp = { path = "crates/mcp" }
+ls-catalog = { path = "crates/catalog" }
+ls-solver = { path = "crates/solver" }
+ls-site = { path = "crates/site" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# Per the port plan: terse, no over-engineering.
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+# doc_markdown flags every CamelCase / snake_case word in prose. Too noisy
+# for porting docs that reference C++ identifiers constantly.
+doc_markdown = "allow"
+# Tests assert exact equality against constants we control; that's the right
+# check, not approximate. Pedantic disagrees.
+float_cmp = "allow"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

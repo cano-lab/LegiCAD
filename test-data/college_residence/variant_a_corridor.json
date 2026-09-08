@@ -1,0 +1,857 @@
+{
+  "mode": "mixed",
+  "building_name": "College Residence — Variant A: Corridor",
+  "sqft": 6000,
+  "floor_to_floor_ft": 10,
+  "floors": [
+    {
+      "level": 1,
+      "name": "Ground Common",
+      "occupancy": "business",
+      "rooms": [
+        {
+          "id": "lobby",
+          "room_type": "lobby",
+          "min_area": 150
+        },
+        {
+          "id": "reception",
+          "room_type": "reception",
+          "min_area": 100
+        },
+        {
+          "id": "main_lounge",
+          "room_type": "lounge",
+          "min_area": 400
+        },
+        {
+          "id": "kitchen",
+          "room_type": "kitchen",
+          "min_area": 200
+        },
+        {
+          "id": "dining",
+          "room_type": "dining",
+          "min_area": 250
+        },
+        {
+          "id": "laundry_1",
+          "room_type": "laundry",
+          "min_area": 100
+        },
+        {
+          "id": "study_1",
+          "room_type": "study",
+          "min_area": 150
+        },
+        {
+          "id": "washroom_1",
+          "room_type": "washroom",
+          "min_area": 80
+        },
+        {
+          "id": "stairs_1",
+          "room_type": "stairs",
+          "min_area": 120
+        },
+        {
+          "id": "elevator_1",
+          "room_type": "elevator",
+          "min_area": 25
+        },
+        {
+          "id": "stairs_1_b",
+          "room_type": "stairs",
+          "min_area": 120
+        }
+      ]
+    },
+    {
+      "level": 2,
+      "name": "Residential 2",
+      "occupancy": "residential",
+      "rooms": [
+        {
+          "id": "corridor_2",
+          "room_type": "corridor",
+          "min_area": 200
+        },
+        {
+          "id": "lounge_2",
+          "room_type": "lounge",
+          "min_area": 150
+        },
+        {
+          "id": "study_2",
+          "room_type": "study",
+          "min_area": 100
+        },
+        {
+          "id": "laundry_2",
+          "room_type": "laundry",
+          "min_area": 80
+        },
+        {
+          "id": "washroom_2a",
+          "room_type": "bathroom",
+          "min_area": 80
+        },
+        {
+          "id": "washroom_2b",
+          "room_type": "bathroom",
+          "min_area": 80
+        },
+        {
+          "id": "bedroom_2_01",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_2_02",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_2_03",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_2_04",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_2_05",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_2_06",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_2_07",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_2_08",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_2_09",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_2_10",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_2_11",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_2_12",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_2_13",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_2_14",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_2_15",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_2_16",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_2_17",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_2_18",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_2_19",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_2_20",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "stairs_2",
+          "room_type": "stairs",
+          "min_area": 120
+        },
+        {
+          "id": "elevator_2",
+          "room_type": "elevator",
+          "min_area": 25
+        },
+        {
+          "id": "stairs_2_b",
+          "room_type": "stairs",
+          "min_area": 120
+        }
+      ]
+    },
+    {
+      "level": 3,
+      "name": "Residential 3",
+      "occupancy": "residential",
+      "rooms": [
+        {
+          "id": "corridor_3",
+          "room_type": "corridor",
+          "min_area": 200
+        },
+        {
+          "id": "lounge_3",
+          "room_type": "lounge",
+          "min_area": 150
+        },
+        {
+          "id": "study_3",
+          "room_type": "study",
+          "min_area": 100
+        },
+        {
+          "id": "washroom_3a",
+          "room_type": "bathroom",
+          "min_area": 80
+        },
+        {
+          "id": "washroom_3b",
+          "room_type": "bathroom",
+          "min_area": 80
+        },
+        {
+          "id": "bedroom_3_01",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_3_02",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_3_03",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_3_04",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_3_05",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_3_06",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_3_07",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_3_08",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_3_09",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_3_10",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_3_11",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_3_12",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_3_13",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_3_14",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_3_15",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_3_16",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_3_17",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_3_18",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_3_19",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_3_20",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "stairs_3",
+          "room_type": "stairs",
+          "min_area": 120
+        },
+        {
+          "id": "elevator_3",
+          "room_type": "elevator",
+          "min_area": 25
+        },
+        {
+          "id": "stairs_3_b",
+          "room_type": "stairs",
+          "min_area": 120
+        }
+      ]
+    },
+    {
+      "level": 4,
+      "name": "Residential 4",
+      "occupancy": "residential",
+      "rooms": [
+        {
+          "id": "corridor_4",
+          "room_type": "corridor",
+          "min_area": 200
+        },
+        {
+          "id": "lounge_4",
+          "room_type": "lounge",
+          "min_area": 150
+        },
+        {
+          "id": "study_4",
+          "room_type": "study",
+          "min_area": 100
+        },
+        {
+          "id": "laundry_4",
+          "room_type": "laundry",
+          "min_area": 80
+        },
+        {
+          "id": "washroom_4a",
+          "room_type": "bathroom",
+          "min_area": 80
+        },
+        {
+          "id": "washroom_4b",
+          "room_type": "bathroom",
+          "min_area": 80
+        },
+        {
+          "id": "bedroom_4_01",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_4_02",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_4_03",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_4_04",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_4_05",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_4_06",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_4_07",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_4_08",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_4_09",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_4_10",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_4_11",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_4_12",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_4_13",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_4_14",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_4_15",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_4_16",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_4_17",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_4_18",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_4_19",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_4_20",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "stairs_4",
+          "room_type": "stairs",
+          "min_area": 120
+        },
+        {
+          "id": "elevator_4",
+          "room_type": "elevator",
+          "min_area": 25
+        },
+        {
+          "id": "stairs_4_b",
+          "room_type": "stairs",
+          "min_area": 120
+        }
+      ]
+    },
+    {
+      "level": 5,
+      "name": "Residential 5",
+      "occupancy": "residential",
+      "rooms": [
+        {
+          "id": "corridor_5",
+          "room_type": "corridor",
+          "min_area": 200
+        },
+        {
+          "id": "lounge_5",
+          "room_type": "lounge",
+          "min_area": 150
+        },
+        {
+          "id": "study_5",
+          "room_type": "study",
+          "min_area": 100
+        },
+        {
+          "id": "washroom_5a",
+          "room_type": "bathroom",
+          "min_area": 80
+        },
+        {
+          "id": "washroom_5b",
+          "room_type": "bathroom",
+          "min_area": 80
+        },
+        {
+          "id": "bedroom_5_01",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_5_02",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_5_03",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_5_04",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_5_05",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_5_06",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_5_07",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_5_08",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_5_09",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_5_10",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_5_11",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_5_12",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_5_13",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_5_14",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_5_15",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_5_16",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_5_17",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_5_18",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_5_19",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_5_20",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "stairs_5",
+          "room_type": "stairs",
+          "min_area": 120
+        },
+        {
+          "id": "elevator_5",
+          "room_type": "elevator",
+          "min_area": 25
+        },
+        {
+          "id": "stairs_5_b",
+          "room_type": "stairs",
+          "min_area": 120
+        }
+      ]
+    },
+    {
+      "level": 6,
+      "name": "Residential 6",
+      "occupancy": "residential",
+      "rooms": [
+        {
+          "id": "corridor_6",
+          "room_type": "corridor",
+          "min_area": 200
+        },
+        {
+          "id": "lounge_6",
+          "room_type": "lounge",
+          "min_area": 150
+        },
+        {
+          "id": "study_6",
+          "room_type": "study",
+          "min_area": 100
+        },
+        {
+          "id": "laundry_6",
+          "room_type": "laundry",
+          "min_area": 80
+        },
+        {
+          "id": "washroom_6a",
+          "room_type": "bathroom",
+          "min_area": 80
+        },
+        {
+          "id": "washroom_6b",
+          "room_type": "bathroom",
+          "min_area": 80
+        },
+        {
+          "id": "bedroom_6_01",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_6_02",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_6_03",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_6_04",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_6_05",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_6_06",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_6_07",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_6_08",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_6_09",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_6_10",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_6_11",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_6_12",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_6_13",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_6_14",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_6_15",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_6_16",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_6_17",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_6_18",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_6_19",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "bedroom_6_20",
+          "room_type": "bedroom",
+          "min_area": 100
+        },
+        {
+          "id": "stairs_6",
+          "room_type": "stairs",
+          "min_area": 120
+        },
+        {
+          "id": "elevator_6",
+          "room_type": "elevator",
+          "min_area": 25
+        },
+        {
+          "id": "stairs_6_b",
+          "room_type": "stairs",
+          "min_area": 120
+        }
+      ]
+    }
+  ],
+  "adjacency": [
+    {
+      "a": "main_lounge",
+      "b": "kitchen",
+      "weight": 1
+    },
+    {
+      "a": "main_lounge",
+      "b": "dining",
+      "weight": 1
+    },
+    {
+      "a": "lobby",
+      "b": "reception",
+      "weight": 1
+    },
+    {
+      "a": "lobby",
+      "b": "main_lounge",
+      "weight": 0.8
+    },
+    {
+      "a": "stairs_1",
+      "b": "lobby",
+      "weight": 1
+    },
+    {
+      "a": "corridor_2",
+      "b": "lounge_2",
+      "weight": 0.8
+    },
+    {
+      "a": "corridor_2",
+      "b": "study_2",
+      "weight": 0.6
+    }
+  ]
+}

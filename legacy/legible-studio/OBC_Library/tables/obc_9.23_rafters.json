@@ -1,0 +1,94 @@
+{
+  "$schema": "../../../Shared/Schemas/code_table.schema.json",
+  "code": "OBC",
+  "version": "2024",
+  "section": "9.23.14",
+  "title": "Rafter Spans",
+  "description": "Maximum spans for roof rafters (Table 9.23.14.1)",
+  "units": {
+    "span": "feet-inches",
+    "spacing": "inches",
+    "load": "psf"
+  },
+  "notes": [
+    "Species: SPF (Spruce-Pine-Fir) No. 1/No. 2 grade",
+    "Snow load regions vary by municipality",
+    "Spans measured horizontally",
+    "Roof slope 4:12 to 12:12"
+  ],
+  "tables": {
+    "spf_no2_snow_40psf": {
+      "description": "SPF No.2 grade, 40 psf snow load",
+      "species": "SPF",
+      "grade": "No.2",
+      "snow_load_psf": 40,
+      "entries": [
+        {
+          "size": "2x6",
+          "depth_in": 5.5,
+          "spacing_12_span": "11-6",
+          "spacing_16_span": "10-5",
+          "spacing_24_span": "8-6"
+        },
+        {
+          "size": "2x8",
+          "depth_in": 7.25,
+          "spacing_12_span": "15-2",
+          "spacing_16_span": "13-9",
+          "spacing_24_span": "11-3"
+        },
+        {
+          "size": "2x10",
+          "depth_in": 9.25,
+          "spacing_12_span": "19-4",
+          "spacing_16_span": "17-7",
+          "spacing_24_span": "14-4"
+        },
+        {
+          "size": "2x12",
+          "depth_in": 11.25,
+          "spacing_12_span": "23-7",
+          "spacing_16_span": "21-5",
+          "spacing_24_span": "17-6"
+        }
+      ]
+    },
+    "spf_no2_snow_60psf": {
+      "description": "SPF No.2 grade, 60 psf snow load",
+      "species": "SPF",
+      "grade": "No.2",
+      "snow_load_psf": 60,
+      "entries": [
+        {
+          "size": "2x6",
+          "depth_in": 5.5,
+          "spacing_12_span": "9-10",
+          "spacing_16_span": "8-11",
+          "spacing_24_span": "7-3"
+        },
+        {
+          "size": "2x8",
+          "depth_in": 7.25,
+          "spacing_12_span": "13-0",
+          "spacing_16_span": "11-10",
+          "spacing_24_span": "9-8"
+        },
+        {
+          "size": "2x10",
+          "depth_in": 9.25,
+          "spacing_12_span": "16-7",
+          "spacing_16_span": "15-1",
+          "spacing_24_span": "12-4"
+        },
+        {
+          "size": "2x12",
+          "depth_in": 11.25,
+          "spacing_12_span": "20-2",
+          "spacing_16_span": "18-4",
+          "spacing_24_span": "15-0"
+        }
+      ]
+    }
+  },
+  "lookup_function": "lookup_rafter_span(species, grade, size, spacing_in, snow_load_psf) -> max_span_ft"
+}

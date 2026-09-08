@@ -1,0 +1,793 @@
+#version 450
+
+/**
+ * Path Tracing Compute Shader
+ *
+ * Implements a full Monte Carlo path tracer with:
+ * - BVH-accelerated ray-scene intersection
+ * - Physically-based BRDF (GGX microfacet model)
+ * - Next Event Estimation (direct light sampling)
+ * - Russian Roulette path termination
+ * - Environment map importance sampling
+ * - Progressive accumulation
+ */
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+// Accumulation image (RGBA32F)
+layout(binding = 0, rgba32f) uniform image2D accumBuffer;
+
+// Uniform buffer
+layout(binding = 1) uniform PathTraceUBO {
+    mat4 cameraInvView;
+    mat4 cameraInvProj;
+    vec4 cameraPosition;
+    vec4 lightDirection;
+    vec4 lightColor;
+    vec4 envMapInfo;      // x=hasEnvMap, y=intensity, z=rotation, w=unused
+    vec4 clipPlane;       // xyz=normal, w=distance (section clipping plane)
+    uint frameIndex;
+    uint sampleCount;
+    uint maxBounces;
+    uint triangleCount;
+    uint nodeCount;
+    uint materialCount;
+    uint enableNEE;
+    uint enableRR;
+    uint rrStartDepth;
+    float exposure;
+    uint tonemapMode;
+    uint width;
+    uint height;
+    uint enableClipping;  // Section clipping enabled flag
+    float uvScale;        // UV scale to match live renderer (effective = 0.001 * uvScale)
+} ubo;
+
+// BVH Node structure (32 bytes)
+struct BVHNode {
+    vec4 boundsMin;  // xyz=min, w=leftChild or -primOffset-1
+    vec4 boundsMax;  // xyz=max, w=rightChild or primCount
+};
+
+// Triangle structure (48 bytes)
+struct Triangle {
+    vec4 v0;  // xyz=position, w=materialIndex
+    vec4 v1;  // xyz=position, w=normal.x
+    vec4 v2;  // xyz=position, w=normal.y
+};
+
+// Material structure (64 bytes)
+struct Material {
+    vec4 albedo;      // rgb=color, a=alpha
+    vec4 emission;    // rgb=color, a=intensity
+    vec4 properties;  // x=roughness, y=metallic, z=ior, w=transmission
+    vec4 texIndices;  // texture indices (unused for now)
+};
+
+// Storage buffers
+layout(binding = 2, std430) readonly buffer TriangleBuffer {
+    Triangle triangles[];
+};
+
+layout(binding = 3, std430) readonly buffer BVHBuffer {
+    BVHNode bvhNodes[];
+};
+
+layout(binding = 4, std430) readonly buffer MaterialBuffer {
+    Material materials[];
+};
+
+// Environment map (optional)
+layout(binding = 5) uniform samplerCube envMap;
+
+// Texture array for PBR materials (optional)
+// Each material has 4 consecutive layers: albedo, normal, roughness, ao
+layout(binding = 6) uniform sampler2DArray textures;
+
+// Constants
+const float PI = 3.14159265359;
+const float INV_PI = 0.31830988618;
+const float EPSILON = 0.001;  // Increased for architectural scale (feet) to reduce shadow acne
+const float MAX_DIST = 1e20;
+
+// ============================================================================
+// Texture Sampling Helpers
+// ============================================================================
+
+// Compute world-space UVs for texture sampling
+// Matches renderer.cpp calcWorldUV for consistent texturing between real-time and path tracer
+// isTerrain flag uses simple XZ projection for terrain surfaces
+vec2 computeWorldUV(vec3 worldPos, vec3 normal, bool isTerrain) {
+    // Scale for world-space UV projection
+    // Live renderer uses base=0.001 * uvScale, so effective scale = 0.001 * ubo.uvScale
+    // Default uvScale=100 gives effective 0.1 = 1 texture tile per 10 feet (~3 meters)
+    float scale = 0.001 * ubo.uvScale;
+
+    vec3 absNormal = abs(normal);
+    vec3 uAxis, vAxis;
+
+    // Terrain always uses simple XZ projection regardless of slope
+    if (isTerrain) {
+        return vec2(worldPos.x, worldPos.z) * scale;
+    }
+
+    // For nearly horizontal surfaces (floors, flat roofs): use XZ projection
+    if (absNormal.y > 0.95) {
+        uAxis = vec3(1.0, 0.0, 0.0);
+        vAxis = vec3(0.0, 0.0, 1.0);
+    }
+    // For nearly vertical surfaces (walls): V is always Y (vertical)
+    else if (absNormal.y < 0.1) {
+        if (absNormal.x > absNormal.z) {
+            // Wall facing X uses Z for U
+            uAxis = vec3(0.0, 0.0, 1.0);
+            vAxis = vec3(0.0, 1.0, 0.0);
+        } else {
+            // Wall facing Z uses X for U
+            uAxis = vec3(1.0, 0.0, 0.0);
+            vAxis = vec3(0.0, 1.0, 0.0);
+        }
+    }
+    // For sloped surfaces (roofs) - use tangent space aligned to slope
+    else {
+        // Project normal onto XZ plane to get slope direction
+        vec3 slopeDir = normalize(vec3(normal.x, 0.0, normal.z));
+        // U axis runs horizontally along the roof ridge (perpendicular to slope fall)
+        uAxis = normalize(cross(vec3(0.0, 1.0, 0.0), slopeDir));
+        // V axis runs up/down the slope
+        vAxis = normalize(cross(normal, uAxis));
+    }
+
+    return vec2(dot(worldPos, uAxis), dot(worldPos, vAxis)) * scale;
+}
+
+// Sample albedo from texture array if available
+// Using textureLod with slight blur to reduce aliasing (no mipmaps in array)
+vec3 sampleAlbedo(vec2 uv, int texIndex, vec3 fallback) {
+    if (texIndex >= 0) {
+        // Sample with slight LOD bias for anti-aliasing
+        // Also do simple 2x2 box filter to reduce aliasing
+        float texelSize = 1.0 / 2048.0;  // Texture resolution
+        vec3 c00 = texture(textures, vec3(uv, float(texIndex))).rgb;
+        vec3 c10 = texture(textures, vec3(uv + vec2(texelSize, 0.0), float(texIndex))).rgb;
+        vec3 c01 = texture(textures, vec3(uv + vec2(0.0, texelSize), float(texIndex))).rgb;
+        vec3 c11 = texture(textures, vec3(uv + vec2(texelSize, texelSize), float(texIndex))).rgb;
+        return (c00 + c10 + c01 + c11) * 0.25;
+    }
+    return fallback;
+}
+
+// Sample normal from texture array (tangent space)
+vec3 sampleNormal(vec2 uv, int texIndex, vec3 geometricNormal) {
+    if (texIndex >= 0) {
+        vec3 tangentNormal = texture(textures, vec3(uv, float(texIndex + 1))).rgb;
+        tangentNormal = tangentNormal * 2.0 - 1.0;
+
+        // Reduced normal strength to avoid artifacts
+        tangentNormal.xy *= 0.3;
+
+        vec3 N = geometricNormal;
+        vec3 T, B;
+        vec3 absN = abs(N);
+
+        // Align TBN with UV projection
+        if (absN.y >= absN.x && absN.y >= absN.z) {
+            // Horizontal surface
+            T = vec3(1.0, 0.0, 0.0);
+            B = vec3(0.0, 0.0, 1.0);
+            if (N.y < 0.0) B = -B;
+        } else if (absN.x >= absN.z) {
+            // Wall facing X
+            T = vec3(0.0, 0.0, 1.0);
+            B = vec3(0.0, 1.0, 0.0);
+            if (N.x < 0.0) T = -T;
+        } else {
+            // Wall facing Z
+            T = vec3(1.0, 0.0, 0.0);
+            B = vec3(0.0, 1.0, 0.0);
+            if (N.z < 0.0) T = -T;
+        }
+
+        return normalize(T * tangentNormal.x + B * tangentNormal.y + N * tangentNormal.z);
+    }
+    return geometricNormal;
+}
+
+// Sample roughness from texture array
+float sampleRoughness(vec2 uv, int texIndex, float fallback) {
+    if (texIndex >= 0) {
+        return texture(textures, vec3(uv, float(texIndex + 2))).r;
+    }
+    return fallback;
+}
+
+// Sample AO from texture array
+float sampleAO(vec2 uv, int texIndex) {
+    if (texIndex >= 0) {
+        return texture(textures, vec3(uv, float(texIndex + 3))).r;
+    }
+    return 1.0;
+}
+
+// Hit information
+struct HitInfo {
+    bool hit;
+    float t;
+    vec3 position;
+    vec3 normal;
+    vec3 geometricNormal;
+    uint materialIndex;
+    vec2 uv;
+};
+
+// ============================================================================
+// Random Number Generation (PCG)
+// ============================================================================
+
+uint pcg(inout uint state) {
+    state = state * 747796405u + 2891336453u;
+    uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+    return (word >> 22u) ^ word;
+}
+
+float random(inout uint seed) {
+    return float(pcg(seed)) / 4294967295.0;
+}
+
+vec2 random2(inout uint seed) {
+    return vec2(random(seed), random(seed));
+}
+
+vec3 random3(inout uint seed) {
+    return vec3(random(seed), random(seed), random(seed));
+}
+
+// ============================================================================
+// Ray-Geometry Intersection
+// ============================================================================
+
+// Ray-AABB intersection
+bool intersectAABB(vec3 origin, vec3 invDir, vec3 boxMin, vec3 boxMax, float tMax, out float tNear) {
+    vec3 t1 = (boxMin - origin) * invDir;
+    vec3 t2 = (boxMax - origin) * invDir;
+
+    vec3 tMin = min(t1, t2);
+    vec3 tMaxV = max(t1, t2);
+
+    float tEnter = max(max(tMin.x, tMin.y), tMin.z);
+    float tExit = min(min(tMaxV.x, tMaxV.y), tMaxV.z);
+
+    tNear = tEnter;
+    return tEnter <= tExit && tExit > 0.0 && tEnter < tMax;
+}
+
+// Ray-Triangle intersection (Moller-Trumbore)
+bool intersectTriangle(vec3 origin, vec3 dir, vec3 v0, vec3 v1, vec3 v2,
+                       out float t, out vec2 uv) {
+    vec3 edge1 = v1 - v0;
+    vec3 edge2 = v2 - v0;
+    vec3 h = cross(dir, edge2);
+    float a = dot(edge1, h);
+
+    if (abs(a) < EPSILON) return false;
+
+    float f = 1.0 / a;
+    vec3 s = origin - v0;
+    float u = f * dot(s, h);
+
+    if (u < 0.0 || u > 1.0) return false;
+
+    vec3 q = cross(s, edge1);
+    float v = f * dot(dir, q);
+
+    if (v < 0.0 || u + v > 1.0) return false;
+
+    t = f * dot(edge2, q);
+    if (t < EPSILON) return false;
+
+    uv = vec2(u, v);
+    return true;
+}
+
+// BVH traversal
+HitInfo intersectBVH(vec3 origin, vec3 dir) {
+    HitInfo result;
+    result.hit = false;
+    result.t = MAX_DIST;
+
+    vec3 invDir = 1.0 / dir;
+
+    // Stack-based traversal
+    uint stack[64];
+    int stackPtr = 0;
+    stack[stackPtr++] = 0;  // Root node
+
+    while (stackPtr > 0) {
+        uint nodeIdx = stack[--stackPtr];
+        BVHNode node = bvhNodes[nodeIdx];
+
+        // Check if leaf
+        int leftChild = floatBitsToInt(node.boundsMin.w);
+
+        if (leftChild < 0) {
+            // Leaf node
+            uint primOffset = uint(-leftChild - 1);
+            uint primCount = floatBitsToUint(node.boundsMax.w);
+
+            for (uint i = 0; i < primCount; i++) {
+                Triangle tri = triangles[primOffset + i];
+
+                float t;
+                vec2 uv;
+                if (intersectTriangle(origin, dir,
+                                      tri.v0.xyz, tri.v1.xyz, tri.v2.xyz,
+                                      t, uv)) {
+                    if (t < result.t) {
+                        vec3 hitPos = origin + dir * t;
+
+                        // Section clipping check
+                        if (ubo.enableClipping != 0u) {
+                            float clipDist = dot(vec4(hitPos, 1.0), ubo.clipPlane);
+                            if (clipDist < 0.0) {
+                                continue;  // Skip clipped geometry
+                            }
+                        }
+
+                        result.hit = true;
+                        result.t = t;
+                        result.position = hitPos;
+                        result.uv = uv;
+                        result.materialIndex = floatBitsToUint(tri.v0.w);
+
+                        // Compute normal
+                        vec3 edge1 = tri.v1.xyz - tri.v0.xyz;
+                        vec3 edge2 = tri.v2.xyz - tri.v0.xyz;
+                        result.geometricNormal = normalize(cross(edge1, edge2));
+                        result.normal = result.geometricNormal;
+
+                        // Flip normals if backface (for correct shading and UV projection)
+                        if (dot(result.normal, dir) > 0.0) {
+                            result.normal = -result.normal;
+                            result.geometricNormal = -result.geometricNormal;
+                        }
+                    }
+                }
+            }
+        } else {
+            // Internal node
+            uint rightChild = floatBitsToUint(node.boundsMax.w);
+
+            BVHNode leftNode = bvhNodes[leftChild];
+            BVHNode rightNode = bvhNodes[rightChild];
+
+            float tLeft, tRight;
+            bool hitLeft = intersectAABB(origin, invDir,
+                                          leftNode.boundsMin.xyz, leftNode.boundsMax.xyz,
+                                          result.t, tLeft);
+            bool hitRight = intersectAABB(origin, invDir,
+                                           rightNode.boundsMin.xyz, rightNode.boundsMax.xyz,
+                                           result.t, tRight);
+
+            // Push children in order (far first, near second for early exit)
+            if (hitLeft && hitRight) {
+                if (tLeft < tRight) {
+                    stack[stackPtr++] = rightChild;
+                    stack[stackPtr++] = leftChild;
+                } else {
+                    stack[stackPtr++] = leftChild;
+                    stack[stackPtr++] = rightChild;
+                }
+            } else if (hitLeft) {
+                stack[stackPtr++] = leftChild;
+            } else if (hitRight) {
+                stack[stackPtr++] = rightChild;
+            }
+        }
+    }
+
+    return result;
+}
+
+// Shadow ray test (any hit)
+bool traceShadowRay(vec3 origin, vec3 dir, float maxDist) {
+    vec3 invDir = 1.0 / dir;
+
+    uint stack[64];
+    int stackPtr = 0;
+    stack[stackPtr++] = 0;
+
+    while (stackPtr > 0) {
+        uint nodeIdx = stack[--stackPtr];
+        BVHNode node = bvhNodes[nodeIdx];
+
+        int leftChild = floatBitsToInt(node.boundsMin.w);
+
+        if (leftChild < 0) {
+            uint primOffset = uint(-leftChild - 1);
+            uint primCount = floatBitsToUint(node.boundsMax.w);
+
+            for (uint i = 0; i < primCount; i++) {
+                Triangle tri = triangles[primOffset + i];
+
+                float t;
+                vec2 uv;
+                if (intersectTriangle(origin, dir,
+                                      tri.v0.xyz, tri.v1.xyz, tri.v2.xyz,
+                                      t, uv)) {
+                    if (t > EPSILON && t < maxDist) {
+                        return true;  // In shadow
+                    }
+                }
+            }
+        } else {
+            uint rightChild = floatBitsToUint(node.boundsMax.w);
+
+            float tNear;
+            if (intersectAABB(origin, invDir, bvhNodes[leftChild].boundsMin.xyz,
+                              bvhNodes[leftChild].boundsMax.xyz, maxDist, tNear)) {
+                stack[stackPtr++] = leftChild;
+            }
+            if (intersectAABB(origin, invDir, bvhNodes[rightChild].boundsMin.xyz,
+                              bvhNodes[rightChild].boundsMax.xyz, maxDist, tNear)) {
+                stack[stackPtr++] = rightChild;
+            }
+        }
+    }
+
+    return false;
+}
+
+// ============================================================================
+// BRDF Functions (GGX Microfacet Model)
+// ============================================================================
+
+float D_GGX(float NdotH, float roughness) {
+    float a = roughness * roughness;
+    float a2 = a * a;
+    float NdotH2 = NdotH * NdotH;
+    float denom = NdotH2 * (a2 - 1.0) + 1.0;
+    return a2 / (PI * denom * denom);
+}
+
+float G_SchlickGGX(float NdotV, float roughness) {
+    float r = roughness + 1.0;
+    float k = (r * r) / 8.0;
+    return NdotV / (NdotV * (1.0 - k) + k);
+}
+
+float G_Smith(float NdotV, float NdotL, float roughness) {
+    return G_SchlickGGX(NdotV, roughness) * G_SchlickGGX(NdotL, roughness);
+}
+
+vec3 F_Schlick(float cosTheta, vec3 F0) {
+    return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+}
+
+// Sample GGX normal distribution
+vec3 sampleGGX(vec2 xi, vec3 N, float roughness) {
+    float a = roughness * roughness;
+
+    float phi = 2.0 * PI * xi.x;
+    float cosTheta = sqrt((1.0 - xi.y) / (1.0 + (a * a - 1.0) * xi.y));
+    float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
+
+    vec3 H;
+    H.x = cos(phi) * sinTheta;
+    H.y = sin(phi) * sinTheta;
+    H.z = cosTheta;
+
+    // Transform to world space
+    vec3 up = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+    vec3 tangent = normalize(cross(up, N));
+    vec3 bitangent = cross(N, tangent);
+
+    return tangent * H.x + bitangent * H.y + N * H.z;
+}
+
+// Cosine-weighted hemisphere sampling (for diffuse)
+vec3 sampleCosineHemisphere(vec2 xi, vec3 N) {
+    float phi = 2.0 * PI * xi.x;
+    float cosTheta = sqrt(1.0 - xi.y);
+    float sinTheta = sqrt(xi.y);
+
+    vec3 H;
+    H.x = cos(phi) * sinTheta;
+    H.y = sin(phi) * sinTheta;
+    H.z = cosTheta;
+
+    vec3 up = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+    vec3 tangent = normalize(cross(up, N));
+    vec3 bitangent = cross(N, tangent);
+
+    return tangent * H.x + bitangent * H.y + N * H.z;
+}
+
+// ============================================================================
+// Environment Sampling
+// ============================================================================
+
+vec3 sampleEnvironment(vec3 dir) {
+    if (ubo.envMapInfo.x > 0.5) {
+        // Sample HDR environment map
+        return texture(envMap, dir).rgb * ubo.envMapInfo.y;
+    } else {
+        // Procedural sky
+        float t = 0.5 * (dir.y + 1.0);
+        vec3 skyBlue = vec3(0.5, 0.7, 1.0);
+        vec3 horizon = vec3(1.0, 0.95, 0.9);
+        vec3 sky = mix(horizon, skyBlue, t);
+
+        // Sun
+        vec3 sunDir = normalize(-ubo.lightDirection.xyz);
+        float sunDot = dot(dir, sunDir);
+        if (sunDot > 0.9995) {
+            return vec3(50.0);  // Bright sun
+        } else if (sunDot > 0.99) {
+            float sunGlow = (sunDot - 0.99) / 0.0095;
+            return sky + vec3(10.0) * sunGlow;
+        }
+
+        return sky * 0.5;
+    }
+}
+
+// ============================================================================
+// Path Tracing
+// ============================================================================
+
+vec3 tracePath(vec3 origin, vec3 dir, inout uint seed) {
+    vec3 radiance = vec3(0.0);
+    vec3 throughput = vec3(1.0);
+
+    for (uint bounce = 0; bounce < ubo.maxBounces; bounce++) {
+        HitInfo hit = intersectBVH(origin, dir);
+
+        if (!hit.hit) {
+            // Hit environment
+            radiance += throughput * sampleEnvironment(dir);
+            break;
+        }
+
+        // Get material
+        Material mat = materials[hit.materialIndex];
+        int texIndex = int(mat.texIndices.x);  // Base texture index (-1 if no textures)
+        bool isTerrain = mat.texIndices.w > 0.5;  // Terrain flag in w component
+
+        // Compute world-space UVs for proper texture tiling
+        vec2 worldUV = computeWorldUV(hit.position, hit.geometricNormal, isTerrain);
+
+        // DEBUG: Visualize material properties
+        // Uncomment ONE of these to debug:
+        // 1. Show texture index as color:
+        // radiance = vec3(float(texIndex + 1) / 10.0, 0.5, 0.5); break;
+        // 2. Show transmission (glass) as blue:
+        // if (transmission > 0.1) { radiance = vec3(0.2, 0.5, 1.0); break; }
+        // 3. Show material index as color:
+        // radiance = vec3(float(hit.materialIndex) / 100.0, 0.5, 0.3); break;
+        // 4. Show UVs as color (R=U, G=V, B=0):
+        // radiance = vec3(fract(worldUV.x), fract(worldUV.y), 0.0); break;
+        // 5. Show normals as color:
+        // radiance = hit.geometricNormal * 0.5 + 0.5; break;
+
+        // Sample textures if available, otherwise use fallback colors
+        vec3 albedo = sampleAlbedo(worldUV, texIndex, mat.albedo.rgb);
+        float roughness = max(sampleRoughness(worldUV, texIndex, mat.properties.x), 0.04);
+        float metallic = mat.properties.y;
+        float ior = mat.properties.z > 1.0 ? mat.properties.z : 1.5;  // Index of refraction
+        float transmission = mat.properties.w;  // 0 = opaque, 1 = fully transparent
+        vec3 emission = mat.emission.rgb * mat.emission.a;
+
+        // ============================================
+        // Handle Glass/Transparent Materials
+        // ============================================
+        if (transmission > 0.5) {
+            // Glass material - handle refraction
+            vec3 N = hit.geometricNormal;
+            float cosI = dot(-dir, N);
+            bool entering = cosI > 0.0;
+
+            // Flip normal if we're inside the glass
+            if (!entering) {
+                N = -N;
+                cosI = -cosI;
+            }
+
+            float eta = entering ? (1.0 / ior) : ior;
+
+            // Fresnel (Schlick approximation) - heavily reduced for architectural glass
+            // We want windows to be mostly transparent, not mirror-like
+            float r0 = (1.0 - ior) / (1.0 + ior);
+            r0 = r0 * r0;
+            float fresnel = r0 + (1.0 - r0) * pow(1.0 - cosI, 5.0);
+            // Heavily reduce Fresnel for clear windows (10% of physical value)
+            fresnel *= 0.1;
+
+            // Decide reflect or refract
+            if (random(seed) < fresnel) {
+                // Reflect
+                dir = reflect(dir, N);
+                origin = hit.position + N * EPSILON;
+            } else {
+                // Refract
+                float k = 1.0 - eta * eta * (1.0 - cosI * cosI);
+                if (k < 0.0) {
+                    // Total internal reflection
+                    dir = reflect(dir, N);
+                    origin = hit.position + N * EPSILON;
+                } else {
+                    dir = normalize(eta * dir + (eta * cosI - sqrt(k)) * N);
+                    origin = hit.position - N * EPSILON;  // Move inside
+                }
+            }
+
+            // Glass tint (slight color absorption)
+            throughput *= mix(vec3(1.0), albedo, 0.1);
+            continue;
+        }
+
+        // Apply normal mapping if texture available
+        vec3 N = sampleNormal(worldUV, texIndex, hit.geometricNormal);
+
+        // Add emission
+        radiance += throughput * emission;
+
+        // Calculate F0 (reflectance at normal incidence)
+        vec3 F0 = mix(vec3(0.04), albedo, metallic);
+
+        // View direction (opposite of incoming ray)
+        vec3 V = -dir;
+        // N is already defined above with normal mapping applied
+
+        // ============================================
+        // Next Event Estimation (Direct Light Sampling)
+        // ============================================
+        if (ubo.enableNEE != 0) {
+            vec3 lightDir = normalize(-ubo.lightDirection.xyz);
+            float NdotL = max(dot(N, lightDir), 0.0);
+
+            if (NdotL > 0.0) {
+                // Shadow ray
+                vec3 shadowOrigin = hit.position + N * EPSILON;
+                if (!traceShadowRay(shadowOrigin, lightDir, MAX_DIST)) {
+                    // Compute BRDF for direct lighting
+                    vec3 H = normalize(V + lightDir);
+                    float NdotV = max(dot(N, V), 0.001);
+                    float NdotH = max(dot(N, H), 0.0);
+                    float VdotH = max(dot(V, H), 0.0);
+
+                    float D = D_GGX(NdotH, roughness);
+                    float G = G_Smith(NdotV, NdotL, roughness);
+                    vec3 F = F_Schlick(VdotH, F0);
+
+                    vec3 specular = D * G * F / max(4.0 * NdotV * NdotL, 0.001);
+                    vec3 kD = (1.0 - F) * (1.0 - metallic);
+                    vec3 diffuse = kD * albedo * INV_PI;
+
+                    vec3 directLight = (diffuse + specular) * ubo.lightColor.rgb * NdotL;
+                    radiance += throughput * directLight;
+                }
+            }
+        }
+
+        // ============================================
+        // Sample BRDF for next bounce
+        // ============================================
+        vec2 xi = random2(seed);
+
+        // Decide between diffuse and specular based on metallic
+        float specularWeight = mix(0.04, 1.0, metallic);
+        bool sampleSpecular = random(seed) < specularWeight;
+
+        vec3 newDir;
+        float pdf;
+        vec3 brdf;
+
+        if (sampleSpecular || roughness < 0.1) {
+            // Specular sampling (GGX)
+            vec3 H = sampleGGX(xi, N, roughness);
+            newDir = reflect(-V, H);
+
+            if (dot(newDir, N) <= 0.0) {
+                break;
+            }
+
+            float NdotV = max(dot(N, V), 0.001);
+            float NdotL = max(dot(N, newDir), 0.001);
+            float NdotH = max(dot(N, H), 0.0);
+            float VdotH = max(dot(V, H), 0.0);
+
+            float D = D_GGX(NdotH, roughness);
+            float G = G_Smith(NdotV, NdotL, roughness);
+            vec3 F = F_Schlick(VdotH, F0);
+
+            // GGX PDF
+            pdf = D * NdotH / (4.0 * VdotH);
+
+            // Specular BRDF
+            brdf = D * G * F / max(4.0 * NdotV * NdotL, 0.001);
+
+            // Account for sampling probability
+            throughput *= brdf * NdotL / max(pdf, 0.001);
+            throughput /= specularWeight;
+        } else {
+            // Diffuse sampling (cosine-weighted)
+            newDir = sampleCosineHemisphere(xi, N);
+            float NdotL = max(dot(N, newDir), 0.0);
+
+            // Cosine-weighted PDF
+            pdf = NdotL * INV_PI;
+
+            // Diffuse BRDF
+            vec3 F = F_Schlick(max(dot(N, V), 0.0), F0);
+            vec3 kD = (1.0 - F) * (1.0 - metallic);
+            brdf = kD * albedo * INV_PI;
+
+            throughput *= brdf * NdotL / max(pdf, 0.001);
+            throughput /= (1.0 - specularWeight);
+        }
+
+        // ============================================
+        // Russian Roulette
+        // ============================================
+        if (ubo.enableRR != 0 && bounce >= ubo.rrStartDepth) {
+            float p = max(throughput.r, max(throughput.g, throughput.b));
+            p = min(p, 0.95);
+
+            if (random(seed) > p) {
+                break;
+            }
+            throughput /= p;
+        }
+
+        // ============================================
+        // Continue path
+        // ============================================
+        origin = hit.position + N * EPSILON;
+        dir = newDir;
+    }
+
+    return radiance;
+}
+
+// ============================================================================
+// Main
+// ============================================================================
+
+void main() {
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+
+    if (pixel.x >= int(ubo.width) || pixel.y >= int(ubo.height)) {
+        return;
+    }
+
+    // Initialize random seed
+    uint seed = pixel.x + pixel.y * ubo.width + ubo.frameIndex * ubo.width * ubo.height;
+    seed = pcg(seed);
+
+    // Generate ray through pixel with jitter
+    vec2 uv = (vec2(pixel) + random2(seed)) / vec2(ubo.width, ubo.height);
+    uv = uv * 2.0 - 1.0;
+    uv.y = -uv.y;  // Flip Y for Vulkan
+
+    // Ray in clip space
+    vec4 clipNear = vec4(uv, 0.0, 1.0);
+    vec4 clipFar = vec4(uv, 1.0, 1.0);
+
+    // Transform to world space
+    vec4 worldNear = ubo.cameraInvView * (ubo.cameraInvProj * clipNear);
+    vec4 worldFar = ubo.cameraInvView * (ubo.cameraInvProj * clipFar);
+    worldNear /= worldNear.w;
+    worldFar /= worldFar.w;
+
+    vec3 origin = worldNear.xyz;
+    vec3 dir = normalize(worldFar.xyz - worldNear.xyz);
+
+    // Trace path for this ray
+    vec3 color = tracePath(origin, dir, seed);
+
+    // Accumulate
+    vec4 prev = imageLoad(accumBuffer, pixel);
+    vec4 result = prev + vec4(color, 1.0);
+
+    imageStore(accumBuffer, pixel, result);
+}

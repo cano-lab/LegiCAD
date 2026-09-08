@@ -1,0 +1,34 @@
+[package]
+name = "ls-qbd"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "QBD JSON ingest + building conversion + orchestration"
+
+[lib]
+name = "qbd"
+
+[lints]
+workspace = true
+
+[dependencies]
+glam.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+ls-domain.workspace = true
+ls-archgeometry.workspace = true
+ls-obc.workspace = true
+ls-drawing.workspace = true
+svg2pdf = "0.13.0"
+pdf-writer = "0.12"
+# Pure-Rust SVG→PNG rasterisation for in-house plan previews (same crates the
+# desktop head and the PDF path already build). resvg re-exports usvg + tiny-skia.
+resvg = "0.45"
+
+[[bin]]
+name = "qbd_dump"
+path = "src/bin/dump.rs"

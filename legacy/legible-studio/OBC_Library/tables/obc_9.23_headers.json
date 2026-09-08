@@ -1,0 +1,96 @@
+{
+  "$schema": "../../../Shared/Schemas/code_table.schema.json",
+  "code": "OBC",
+  "version": "2024",
+  "section": "9.23.12",
+  "title": "Lintels and Headers",
+  "description": "Maximum spans for wood lintels supporting roof and ceiling loads only (Table 9.23.12.2.A)",
+  "units": {
+    "span": "feet",
+    "depth": "inches"
+  },
+  "notes": [
+    "Values are for single-span lintels supporting roof and ceiling loads only",
+    "For lintels supporting floor loads, use Table 9.23.12.3",
+    "Species: SPF (Spruce-Pine-Fir) No. 2 or better",
+    "Assumes combined dead and live roof load of 40 psf"
+  ],
+  "tables": {
+    "roof_ceiling_only": {
+      "description": "Lintels supporting roof and ceiling loads only",
+      "supported_length_ft": 12,
+      "entries": [
+        {
+          "size": "2x4",
+          "depth_in": 3.5,
+          "single_ply_span_ft": 2.0,
+          "double_ply_span_ft": 3.0,
+          "triple_ply_span_ft": 3.5
+        },
+        {
+          "size": "2x6",
+          "depth_in": 5.5,
+          "single_ply_span_ft": 3.5,
+          "double_ply_span_ft": 5.0,
+          "triple_ply_span_ft": 6.0
+        },
+        {
+          "size": "2x8",
+          "depth_in": 7.25,
+          "single_ply_span_ft": 5.0,
+          "double_ply_span_ft": 7.0,
+          "triple_ply_span_ft": 8.5
+        },
+        {
+          "size": "2x10",
+          "depth_in": 9.25,
+          "single_ply_span_ft": 6.5,
+          "double_ply_span_ft": 9.0,
+          "triple_ply_span_ft": 11.0
+        },
+        {
+          "size": "2x12",
+          "depth_in": 11.25,
+          "single_ply_span_ft": 8.0,
+          "double_ply_span_ft": 11.0,
+          "triple_ply_span_ft": 13.5
+        }
+      ]
+    },
+    "one_floor_roof_ceiling": {
+      "description": "Lintels supporting one floor plus roof and ceiling loads",
+      "supported_length_ft": 12,
+      "entries": [
+        {
+          "size": "2x6",
+          "depth_in": 5.5,
+          "single_ply_span_ft": 2.0,
+          "double_ply_span_ft": 3.0,
+          "triple_ply_span_ft": 3.5
+        },
+        {
+          "size": "2x8",
+          "depth_in": 7.25,
+          "single_ply_span_ft": 3.0,
+          "double_ply_span_ft": 4.5,
+          "triple_ply_span_ft": 5.5
+        },
+        {
+          "size": "2x10",
+          "depth_in": 9.25,
+          "single_ply_span_ft": 4.0,
+          "double_ply_span_ft": 6.0,
+          "triple_ply_span_ft": 7.5
+        },
+        {
+          "size": "2x12",
+          "depth_in": 11.25,
+          "single_ply_span_ft": 5.0,
+          "double_ply_span_ft": 7.5,
+          "triple_ply_span_ft": 9.0
+        }
+      ]
+    }
+  },
+  "lookup_function": "lookup_header_span(opening_width_ft, load_condition, plies) -> {size, meets_code}"
+}

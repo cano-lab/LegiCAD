@@ -1,0 +1,30 @@
+{
+  "name": "Test Building with Terrain",
+  "units": "mm",
+  "elements": [
+    {"type": "wall", "start": [0, 0, 0], "end": [9144, 0, 0], "width": 152, "height": 3048, "material": "brick"},
+    {"type": "wall", "start": [9144, 0, 0], "end": [9144, 0, 12192], "width": 152, "height": 3048, "material": "brick"},
+    {"type": "wall", "start": [9144, 0, 12192], "end": [0, 0, 12192], "width": 152, "height": 3048, "material": "brick"},
+    {"type": "wall", "start": [0, 0, 12192], "end": [0, 0, 0], "width": 152, "height": 3048, "material": "brick"},
+    {"type": "wall", "start": [0, 3048, 0], "end": [9144, 3048, 0], "width": 152, "height": 3048, "material": "brick"},
+    {"type": "wall", "start": [9144, 3048, 0], "end": [9144, 3048, 12192], "width": 152, "height": 3048, "material": "brick"},
+    {"type": "wall", "start": [9144, 3048, 12192], "end": [0, 3048, 12192], "width": 152, "height": 3048, "material": "brick"},
+    {"type": "wall", "start": [0, 3048, 12192], "end": [0, 3048, 0], "width": 152, "height": 3048, "material": "brick"},
+    {"type": "slab", "start": [0, 0, 0], "end": [9144, 0, 12192], "width": 9144, "height": 200, "material": "concrete"},
+    {"type": "slab", "start": [0, 3048, 0], "end": [9144, 3048, 12192], "width": 9144, "height": 200, "material": "concrete"},
+    {"type": "slab", "start": [0, 6096, 0], "end": [9144, 6096, 12192], "width": 9144, "height": 200, "material": "concrete"},
+    {"type": "column", "start": [300, 0, 300], "end": [300, 6096, 300], "width": 300, "height": 6096, "material": "concrete"},
+    {"type": "column", "start": [8844, 0, 300], "end": [8844, 6096, 300], "width": 300, "height": 6096, "material": "concrete"},
+    {"type": "column", "start": [8844, 0, 11892], "end": [8844, 6096, 11892], "width": 300, "height": 6096, "material": "concrete"},
+    {"type": "column", "start": [300, 0, 11892], "end": [300, 6096, 11892], "width": 300, "height": 6096, "material": "concrete"}
+  ],
+  "terrain_mesh": {
+    "width_ft": 80,
+    "depth_ft": 80,
+    "min_elevation": 0,
+    "max_elevation": 10,
+    "vertices": [
+    ],
+    "indices": []
+  }
+}

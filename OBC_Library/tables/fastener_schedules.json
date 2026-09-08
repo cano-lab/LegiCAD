@@ -1,0 +1,114 @@
+{
+  "$schema": "../../../Shared/Schemas/code_table.schema.json",
+  "code": "OBC",
+  "version": "2024",
+  "section": "9.23.3",
+  "title": "Nailing Schedule",
+  "description": "Minimum nailing requirements for wood frame construction (Table 9.23.3.4)",
+  "units": {
+    "length": "inches",
+    "spacing": "inches",
+    "diameter": "inches"
+  },
+  "nail_specifications": {
+    "6d_common": { "length": 2.0, "diameter": 0.113 },
+    "8d_common": { "length": 2.5, "diameter": 0.131 },
+    "10d_common": { "length": 3.0, "diameter": 0.148 },
+    "16d_common": { "length": 3.5, "diameter": 0.162 },
+    "3in_common": { "length": 3.0, "diameter": 0.148 }
+  },
+  "schedules": {
+    "plate_to_stud": {
+      "description": "Top or bottom plate to stud",
+      "connection": "End-nailed",
+      "nail": "16d_common",
+      "quantity": 2,
+      "pattern": "per stud"
+    },
+    "stud_to_plate_toenail": {
+      "description": "Stud to plate (toenailed)",
+      "connection": "Toenailed",
+      "nail": "10d_common",
+      "quantity": 4,
+      "pattern": "per stud (2 each side)"
+    },
+    "double_top_plate": {
+      "description": "Double top plate, splice",
+      "connection": "Face-nailed",
+      "nail": "16d_common",
+      "quantity": 2,
+      "pattern": "minimum per splice"
+    },
+    "double_top_plate_lapped": {
+      "description": "Double top plate to top plate",
+      "connection": "Face-nailed",
+      "nail": "10d_common",
+      "spacing_in": 24,
+      "pattern": "staggered"
+    },
+    "sheathing_to_studs_edges": {
+      "description": "Wall sheathing to framing (edges)",
+      "connection": "Face-nailed",
+      "nail": "8d_common",
+      "spacing_in": 6,
+      "pattern": "at panel edges"
+    },
+    "sheathing_to_studs_field": {
+      "description": "Wall sheathing to framing (field)",
+      "connection": "Face-nailed",
+      "nail": "8d_common",
+      "spacing_in": 12,
+      "pattern": "at intermediate supports"
+    },
+    "subfloor_to_joists": {
+      "description": "Subfloor to joists",
+      "connection": "Face-nailed",
+      "nail": "8d_common",
+      "spacing_in": 6,
+      "pattern": "at edges and intermediate supports"
+    },
+    "roof_sheathing_edges": {
+      "description": "Roof sheathing to rafters (edges)",
+      "connection": "Face-nailed",
+      "nail": "8d_common",
+      "spacing_in": 6,
+      "pattern": "at panel edges"
+    },
+    "roof_sheathing_field": {
+      "description": "Roof sheathing to rafters (field)",
+      "connection": "Face-nailed",
+      "nail": "8d_common",
+      "spacing_in": 12,
+      "pattern": "at intermediate supports"
+    },
+    "joist_to_sill_toenail": {
+      "description": "Joist to sill or girder (toenailed)",
+      "connection": "Toenailed",
+      "nail": "10d_common",
+      "quantity": 3,
+      "pattern": "per joist"
+    },
+    "rafter_to_plate": {
+      "description": "Rafter to top plate (toenailed)",
+      "connection": "Toenailed",
+      "nail": "10d_common",
+      "quantity": 3,
+      "pattern": "per rafter"
+    },
+    "ceiling_joist_to_plate": {
+      "description": "Ceiling joist to top plate (toenailed)",
+      "connection": "Toenailed",
+      "nail": "10d_common",
+      "quantity": 3,
+      "pattern": "per joist"
+    },
+    "rafter_to_ceiling_joist": {
+      "description": "Rafter to ceiling joist (face-nailed)",
+      "connection": "Face-nailed",
+      "nail": "10d_common",
+      "quantity": 3,
+      "pattern": "per connection"
+    }
+  },
+  "lookup_function": "get_fastener_schedule(connection_type) -> {nail, quantity_or_spacing, pattern}"
+}

@@ -1,0 +1,19 @@
+[package]
+name = "archengine-solver"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "ArchEngine constraint/program solver — answers → building (port of legacy ls-solver)"
+
+[lib]
+name = "archengine_solver"
+
+[dependencies]
+archengine-geometry = { path = "../../archengine/geometry" }
+regime-obc = { path = "../../regime/obc" }
+glam.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

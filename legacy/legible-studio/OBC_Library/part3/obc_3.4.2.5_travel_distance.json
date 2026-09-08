@@ -1,0 +1,10 @@
+{
+  "entries": [
+    {"occupancy": "residential", "max_distance_m": 25},
+    {"occupancy": "business", "max_distance_m": 45},
+    {"occupancy": "assembly", "max_distance_m": 30},
+    {"occupancy": "industrial", "max_distance_m": 40},
+    {"occupancy": "mercantile", "max_distance_m": 30},
+    {"occupancy": "parking", "max_distance_m": 45}
+  ]
+}

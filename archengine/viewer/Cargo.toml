@@ -1,0 +1,44 @@
+[package]
+name = "archengine-viewer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "ArchEngine viewer — Vulkan renderer + compute path tracer (Rust port of legacy/ArchEngine_kernel, see questions.md A4)"
+build = "build.rs"
+
+[[bin]]
+name = "archrender"
+path = "src/bin/archrender.rs"
+
+[[bin]]
+name = "archview"
+path = "src/bin/archview.rs"
+required-features = ["windowed"]
+
+[features]
+default = ["windowed"]
+# Windowed mode: winit window + swapchain presentation.
+# Headless (compute-only, e.g. batch path-traced renders) builds without winit:
+#   cargo check -p archengine-viewer --no-default-features
+windowed = ["dep:winit", "ash-window", "raw-window-handle"]
+
+[dependencies]
+archengine-geometry = { path = "../geometry" }
+ash.workspace = true
+ash-window = { workspace = true, optional = true }
+raw-window-handle = { workspace = true, optional = true }
+winit = { workspace = true, optional = true }
+glam.workspace = true
+image.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[build-dependencies]
+shaderc.workspace = true
+anyhow.workspace = true

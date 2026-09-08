@@ -1,0 +1,24 @@
+[package]
+name = "ls-geometry-loader"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "JSON building loader + sample builders + serde derives"
+
+[lib]
+name = "geometry_loader"
+
+[lints]
+workspace = true
+
+[dependencies]
+glam.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+ls-domain.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

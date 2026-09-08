@@ -1,0 +1,12 @@
+{
+  "_comment": "Two adjacent rooms sharing a wall.",
+  "scale": 0.01,
+  "cut_height": 1500.0,
+  "walls": [
+    {"start": [0.0, 0.0],       "end": [8000.0, 0.0],    "thickness": 150.0, "height": 3000.0},
+    {"start": [8000.0, 0.0],    "end": [8000.0, 4000.0], "thickness": 150.0, "height": 3000.0},
+    {"start": [8000.0, 4000.0], "end": [0.0, 4000.0],    "thickness": 150.0, "height": 3000.0},
+    {"start": [0.0, 4000.0],    "end": [0.0, 0.0],       "thickness": 150.0, "height": 3000.0},
+    {"start": [4000.0, 0.0],    "end": [4000.0, 4000.0], "thickness": 100.0, "height": 3000.0}
+  ]
+}

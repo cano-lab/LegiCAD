@@ -1,0 +1,93 @@
+{
+  "$schema": "../../../Shared/Schemas/code_table.schema.json",
+  "code": "OBC",
+  "version": "2024",
+  "section": "9.23.9",
+  "title": "Floor Joist Spans",
+  "description": "Maximum spans for floor joists (Table 9.23.9.2)",
+  "units": {
+    "span": "feet-inches",
+    "spacing": "inches",
+    "load": "psf"
+  },
+  "notes": [
+    "Species: SPF (Spruce-Pine-Fir) No. 1/No. 2 grade",
+    "Residential floor loads: 40 psf live load",
+    "Spans are clear span between supports"
+  ],
+  "tables": {
+    "spf_no2_40psf": {
+      "description": "SPF No.2 grade, 40 psf live load",
+      "species": "SPF",
+      "grade": "No.2",
+      "live_load_psf": 40,
+      "entries": [
+        {
+          "size": "2x6",
+          "depth_in": 5.5,
+          "spacing_12_span": "10-6",
+          "spacing_16_span": "9-6",
+          "spacing_24_span": "7-10"
+        },
+        {
+          "size": "2x8",
+          "depth_in": 7.25,
+          "spacing_12_span": "13-10",
+          "spacing_16_span": "12-6",
+          "spacing_24_span": "10-4"
+        },
+        {
+          "size": "2x10",
+          "depth_in": 9.25,
+          "spacing_12_span": "17-8",
+          "spacing_16_span": "16-0",
+          "spacing_24_span": "13-2"
+        },
+        {
+          "size": "2x12",
+          "depth_in": 11.25,
+          "spacing_12_span": "21-6",
+          "spacing_16_span": "19-6",
+          "spacing_24_span": "16-0"
+        }
+      ]
+    },
+    "spf_no1_40psf": {
+      "description": "SPF No.1 grade, 40 psf live load",
+      "species": "SPF",
+      "grade": "No.1",
+      "live_load_psf": 40,
+      "entries": [
+        {
+          "size": "2x6",
+          "depth_in": 5.5,
+          "spacing_12_span": "11-0",
+          "spacing_16_span": "10-0",
+          "spacing_24_span": "8-6"
+        },
+        {
+          "size": "2x8",
+          "depth_in": 7.25,
+          "spacing_12_span": "14-6",
+          "spacing_16_span": "13-2",
+          "spacing_24_span": "11-0"
+        },
+        {
+          "size": "2x10",
+          "depth_in": 9.25,
+          "spacing_12_span": "18-6",
+          "spacing_16_span": "16-10",
+          "spacing_24_span": "14-0"
+        },
+        {
+          "size": "2x12",
+          "depth_in": 11.25,
+          "spacing_12_span": "22-6",
+          "spacing_16_span": "20-6",
+          "spacing_24_span": "17-0"
+        }
+      ]
+    }
+  },
+  "lookup_function": "lookup_joist_span(species, grade, size, spacing_in) -> max_span_ft"
+}

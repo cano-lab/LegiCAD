@@ -1,0 +1,36 @@
+[package]
+name = "ls-app"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Legible Studio desktop head — bare-metal (tiny-skia + pk-surface), renders the permit floor plan"
+
+[[bin]]
+name = "legible"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow.workspace = true
+glam.workspace = true
+serde_json.workspace = true
+tiny-skia = "0.11"
+# Rasterise drawing SVGs into thumbnails for the sheet-layout editor.
+resvg = "0.45"
+# Glyph rasterisation for in-editor text labels (the app has no text layer yet).
+fontdue = "0.9"
+# Native file dialog for the sheet-export "save to…" picker.
+rfd = "0.15"
+pk-surface.workspace = true
+pk-surface-winit.workspace = true
+pk-object.workspace = true
+ls-qbd.workspace = true
+ls-drawing.workspace = true
+ls-archgeometry.workspace = true
+ls-catalog.workspace = true
+ls-solver.workspace = true
+ls-site.workspace = true

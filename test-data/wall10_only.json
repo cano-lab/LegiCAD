@@ -1,0 +1,58 @@
+{
+    "width":  0,
+    "building_id":  "wall10-test",
+    "windows":  [
+
+                ],
+    "depth":  0,
+    "floors_batch":  [
+
+                     ],
+    "rooms":  [
+
+              ],
+    "doors":  [
+                  {
+                      "x":  3017.5200000000004,
+                      "y":  4876.8,
+                      "width":  899.9999999999995,
+                      "type":  "door",
+                      "room1":  "primary_bedroom",
+                      "room2":  "primary_closet",
+                      "level_name":  "Level 1",
+                      "wall_index":  0,
+                      "height":  2033.016,
+                      "offset":  609.6000000000004,
+                      "swing":  "left_in",
+                      "wall_index_orig":  10
+                  }
+              ],
+    "walls_batch":  [
+                        {
+                            "start":  [
+                                          3017.5200000000004,
+                                          0,
+                                          4267.2
+                                      ],
+                            "end":  [
+                                        3017.5200000000004,
+                                        0,
+                                        5486.400000000001
+                                    ],
+                            "height":  3048.0,
+                            "wall_type":  "int_2x4",
+                            "level_name":  "Level 1",
+                            "category":  "interior",
+                            "rooms":  [
+                                          "primary_bedroom",
+                                          "primary_closet"
+                                      ],
+                            "wall_index":  10
+                        }
+                    ],
+    "success":  true,
+    "roofs":  [
+
+              ],
+    "unit":  "mm"
+}

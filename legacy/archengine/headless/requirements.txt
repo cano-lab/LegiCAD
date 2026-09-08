@@ -1,0 +1,22 @@
+# Archengine Headless Dependencies
+
+# API Server
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+pydantic>=2.0.0
+
+# MCP Server
+mcp>=0.1.0
+
+# PDF Export
+reportlab>=4.0.0
+svglib>=1.5.0
+
+# SVG Generation (already in ArchEngine but listed for clarity)
+lxml>=4.9.0
+
+# Data handling
+numpy>=1.24.0
+
+# Optional: for production deployment
+# gunicorn>=21.0.0

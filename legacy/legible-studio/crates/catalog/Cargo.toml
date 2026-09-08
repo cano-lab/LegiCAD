@@ -1,0 +1,22 @@
+[package]
+name = "ls-catalog"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Legible Studio's object catalog — ObjectGenerator/ValidationRule impls registered against the parametric-kernel"
+
+[lib]
+name = "catalog"
+
+[lints]
+workspace = true
+
+[dependencies]
+glam.workspace = true
+serde_json.workspace = true
+pk-geom.workspace = true
+pk-primitives.workspace = true
+pk-object.workspace = true
+ls-archgeometry.workspace = true

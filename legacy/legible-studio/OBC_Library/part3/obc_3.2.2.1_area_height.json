@@ -1,0 +1,17 @@
+{
+  "entries": [
+    {"occupancy": "residential", "sprinklered": false, "max_area_per_storey_m2": 600, "max_height_m": 10, "max_storeys": 3},
+    {"occupancy": "residential", "sprinklered": true, "max_area_per_storey_m2": 1200, "max_height_m": 18, "max_storeys": 4},
+    {"occupancy": "residential", "sprinklered": true, "alternative_solution": true, "max_area_per_storey_m2": 2000, "max_height_m": 22, "max_storeys": 6},
+    {"occupancy": "business", "sprinklered": false, "max_area_per_storey_m2": 6000, "max_height_m": 36, "max_storeys": 6},
+    {"occupancy": "business", "sprinklered": true, "max_area_per_storey_m2": 12000, "max_height_m": 60, "max_storeys": 12},
+    {"occupancy": "assembly", "sprinklered": false, "max_area_per_storey_m2": 3000, "max_height_m": 18, "max_storeys": 2},
+    {"occupancy": "assembly", "sprinklered": true, "max_area_per_storey_m2": 6000, "max_height_m": 30, "max_storeys": 4},
+    {"occupancy": "industrial", "sprinklered": false, "max_area_per_storey_m2": 4000, "max_height_m": 18, "max_storeys": 2},
+    {"occupancy": "industrial", "sprinklered": true, "max_area_per_storey_m2": 8000, "max_height_m": 30, "max_storeys": 4},
+    {"occupancy": "mercantile", "sprinklered": false, "max_area_per_storey_m2": 3000, "max_height_m": 18, "max_storeys": 3},
+    {"occupancy": "mercantile", "sprinklered": true, "max_area_per_storey_m2": 6000, "max_height_m": 30, "max_storeys": 6},
+    {"occupancy": "parking", "sprinklered": false, "max_area_per_storey_m2": 4000, "max_height_m": 12, "max_storeys": 2},
+    {"occupancy": "parking", "sprinklered": true, "max_area_per_storey_m2": 8000, "max_height_m": 24, "max_storeys": 4}
+  ]
+}

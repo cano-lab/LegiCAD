@@ -1,0 +1,57 @@
+{
+    "width":  10363.2,
+    "building_id":  "min-test",
+    "windows":  [
+
+                ],
+    "depth":  7315.2,
+    "floors_batch":  [
+
+                     ],
+    "rooms":  [
+
+              ],
+    "doors":  [
+                  {
+                      "x":  838.2,
+                      "y":  0.0,
+                      "width":  914.4000000000001,
+                      "type":  "door",
+                      "room1":  "exterior",
+                      "room2":  "exterior",
+                      "level_name":  "Level 1",
+                      "wall_index":  0,
+                      "height":  2033.016,
+                      "offset":  838.2,
+                      "swing":  "left_in"
+                  }
+              ],
+    "walls_batch":  [
+                        {
+                            "start":  [
+                                          0.0,
+                                          0,
+                                          0.0
+                                      ],
+                            "end":  [
+                                        10363.2,
+                                        0,
+                                        0.0
+                                    ],
+                            "height":  3048.0,
+                            "wall_type":  "ext_2x6_r21",
+                            "level_name":  "Level 1",
+                            "category":  "exterior",
+                            "rooms":  [
+                                          "exterior",
+                                          "exterior"
+                                      ],
+                            "wall_index":  0
+                        }
+                    ],
+    "success":  true,
+    "roofs":  [
+
+              ],
+    "unit":  "mm"
+}
