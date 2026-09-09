@@ -1,0 +1,78 @@
+{
+  "metadata": {
+    "name": "Sudbury R1-Residential Single Detached",
+    "jurisdiction": "City of Greater Sudbury",
+    "bylaw": "Comprehensive Zoning By-law 2010-100Z",
+    "zone": "R1",
+    "date": "2026-09-08"
+  },
+  "site": {
+    "min_frontage": 15.0,
+    "min_depth": 30.0,
+    "min_area": 450.0
+  },
+  "building": {
+    "max_height": {
+      "value": 10.0,
+      "unit": "m",
+      "note": "Maximum building height"
+    },
+    "max_storeys": {
+      "value": 2,
+      "note": "Maximum number of storeys"
+    },
+    "max_gross_floor_area": {
+      "value": 300.0,
+      "unit": "sqm",
+      "note": "Maximum gross floor area for single detached"
+    },
+    "max_lot_coverage": {
+      "value": 0.40,
+      "unit": "ratio",
+      "note": "Maximum lot coverage (building footprint / lot area)"
+    },
+    "max_fsr": {
+      "value": 0.50,
+      "unit": "ratio",
+      "note": "Maximum floor space ratio"
+    }
+  },
+  "setbacks": {
+    "front": {
+      "value": 6.0,
+      "unit": "m",
+      "applies_to": "principal_building",
+      "note": "Minimum distance from front lot line"
+    },
+    "rear": {
+      "value": 7.5,
+      "unit": "m",
+      "applies_to": "principal_building",
+      "note": "Minimum distance from rear lot line"
+    },
+    "side_interior": {
+      "value": 1.2,
+      "unit": "m",
+      "applies_to": "principal_building",
+      "note": "Minimum side setback (interior lot line)"
+    },
+    "side_exterior": {
+      "value": 3.0,
+      "unit": "m",
+      "applies_to": "principal_building",
+      "note": "Minimum side setback (exterior/street side)"
+    }
+  },
+  "parking": {
+    "spaces_required": 2,
+    "spaces_per_unit": 2,
+    "min_width": 2.6,
+    "min_length": 5.2,
+    "note": "Minimum 2 parking spaces per dwelling unit"
+  },
+  "units": {
+    "max_units": 1,
+    "type": "single_detached",
+    "note": "R1 zone allows single detached dwelling only"
+  }
+}
