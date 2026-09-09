@@ -17,4 +17,5 @@ pub mod domain;
 pub mod mesh;
 pub mod mesh_gen;
 pub mod object;
+pub mod qbd;
 pub mod wall_system;

@@ -101,7 +101,7 @@ This code is reference, not current. The new ArchEngine is being built in Rust.
 
 ```bash
 # Interactive game-style viewer (WASD + right-drag mouse look, Q/E up/down,
-# scroll = speed, Esc quits). Optional HDRI sky.
+# scroll = speed, F1 = overlay, Esc quits). Optional HDRI sky.
 cargo run -p archengine-viewer --bin archview -- --scene scene.json [--env sky.hdr]
 
 # Headless path-traced render (progressive Monte Carlo, GGX PBR, ACES).
@@ -109,6 +109,12 @@ cargo run -p archengine-viewer --bin archrender -- \
     --scene scene.json --out render.png --spp 64 \
     --camera "0,5,20:0,2,0" [--env sky.hdr --env-intensity 1.0] [--hdr render.hdr]
 ```
+
+Scene files: either a flat `StructuralElement` JSON array, or a **QBD
+building file** straight from the generator (`walls_batch`, `floors_batch`,
+`doors`, `windows`, `roofs`; millimetres, heights as separate fields) —
+e.g. `test-data/wall10_only.json`. Doors/windows are positioned along their
+host wall and cut into the wall mesh, as the C++ `qbd_interface` did.
 
 ### M1 Mac (MoltenVK) smoke test
 

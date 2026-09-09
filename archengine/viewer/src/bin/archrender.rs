@@ -101,7 +101,8 @@ fn run() -> Result<()> {
     let scene_path = scene_path.context("--scene <building.json> is required")?;
     let scene_json = std::fs::read_to_string(&scene_path)
         .with_context(|| format!("reading {}", scene_path.display()))?;
-    let elements: Vec<StructuralElement> = serde_json::from_str(&scene_json)
+    // Flat StructuralElement array or a QBD building file (walls_batch/…).
+    let elements: Vec<StructuralElement> = archengine_geometry::qbd::elements_from_json(&scene_json)
         .with_context(|| format!("parsing {}", scene_path.display()))?;
     println!("archrender: {} elements", elements.len());
 

@@ -62,8 +62,10 @@ fn main() -> Result<()> {
     let args = parse_args()?;
     let text = fs::read_to_string(&args.scene)
         .with_context(|| format!("reading {}", args.scene.display()))?;
+    // Flat StructuralElement array or a QBD building file (walls_batch/…) —
+    // the loader handles both (QBD is the QBD generator's native output).
     let elements: Vec<StructuralElement> =
-        serde_json::from_str(&text).context("parsing scene JSON (array of StructuralElement)")?;
+        archengine_geometry::qbd::elements_from_json(&text).context("parsing scene JSON")?;
 
     if args.no_validation {
         // Validation default is tied to debug builds; this flag exists for
