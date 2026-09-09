@@ -4,106 +4,114 @@
 
 | File | Purpose |
 |------|---------|
-| `LegiCAD_RegimeScript.cs` | C# script for Grasshopper C# Script component |
+| `LegiCAD_RegimeScript.cs` | C# script (v0.2) for a Grasshopper C# Script component — zero dependencies |
 | `sudbury_r1_constraints.json` | Sudbury R1 residential zoning constraints |
+| `LegiCAD_Site.3dm` | Starter Rhino file: 15m × 30m lot (R1 minimum), setback guides, meters |
+| `make_site.py` | Regenerates `LegiCAD_Site.3dm` (requires `pip install rhino3dm`) |
 
 ## How to Use
 
-### 1. Install Newtonsoft.Json (if not already installed)
+### 1. Open the starter site
 
-Grasshopper C# components need the Newtonsoft.Json DLL to parse JSON.
+Open `LegiCAD_Site.3dm` in Rhino 8. It contains:
 
-**Option A: Use the one that comes with Rhino**
-- Rhino 7/8 usually has it at: `C:\Program Files\Rhino 7\System\Newtonsoft.Json.dll`
-- In the Grasshopper C# script editor, go to **Manage Assemblies** and add this path
+- **Layer `SiteBoundary`** — a closed polyline lot, 15m frontage × 30m depth
+  (450 sqm, the exact R1 minimum). This is your `SiteBoundary` input.
+- **Layer `Reference`** — the true R1 setback envelope (6m front / 7.5m rear /
+  1.2m sides), a street line, and labels. Visual reference only.
 
-**Option B: Download it**
-- Get `Newtonsoft.Json.dll` from NuGet
-- Place it somewhere accessible and reference it in the C# script editor
+### 2. Create the Grasshopper component
 
-### 2. Create the Grasshopper Component
-
-1. Open Grasshopper in Rhino
-2. Add a **C# Script** component (Maths → Script → C#)
-3. Double-click to open the editor
+1. Run `Grasshopper` in Rhino
+2. Add a **C# Script** component (Maths → Script → C# Script)
+3. Double-click it to open the editor
 4. Delete the default code
-5. Copy and paste the entire contents of `LegiCAD_RegimeScript.cs`
-6. Click **Manage Assemblies** and add `Newtonsoft.Json.dll`
-7. Click **OK**
+5. Paste the entire contents of `LegiCAD_RegimeScript.cs`
+6. Click **OK**
 
-### 3. Set Up Inputs
+No assembly references needed — v0.2 parses JSON with an embedded
+dependency-free parser (MiniJson), so there is no Newtonsoft.Json step.
 
-Right-click the C# component inputs and add these parameters:
+### 3. Set up inputs
 
-| Input | Type | Default | Description |
-|-------|------|---------|-------------|
-| `SiteBoundary` | Curve | (none) | Connect a closed polyline (your lot) |
-| `JsonPath` | String | (empty) | Path to `sudbury_r1_constraints.json` |
-| `UnitCount` | Integer | 1 | Number of units (slider: 1-4) |
-| `CeilingHeight` | Number | 2.7 | Ceiling height in meters (slider: 2.4-3.0) |
-| `TargetUnitSize` | Number | 80 | Area per unit in sqm (slider: 60-120) |
+Right-click each input on the C# component and rename/set it:
 
-### 4. Set Up Outputs
+| Input | Rename to | Type hint | Wire to |
+|-------|-----------|-----------|---------|
+| `x` | `SiteBoundary` | Curve | A `Curve` param → Set One Curve → the lot polyline |
+| `y` | `JsonPath` | (string) | A `Panel` with the full path to `sudbury_r1_constraints.json` |
 
-Right-click the C# component outputs and rename them:
+Then zoom in on the component and add three more inputs (`z+` button):
 
-| Output | Type | Description |
-|--------|------|-------------|
-| `Massing` | Brep | The 3D building massing |
-| `Envelope` | Brep | The feasible envelope (with setbacks) |
-| `Compliance` | String | Human-readable compliance report |
-| `IsValid` | Boolean | True if all constraints pass |
-| `DebugInfo` | String | Internal calculation log |
+| Input | Rename to | Type hint | Wire to |
+|-------|-----------|-----------|---------|
+| `z` | `UnitCount` | int | Integer slider, 1–4 |
+| + | `CeilingHeight` | double | Number slider, 2.4–3.0 |
+| + | `TargetUnitSize` | double | Number slider, 60–120 |
 
-### 5. Draw a Site Boundary in Rhino
+**Names must match exactly** — Grasshopper binds parameters to `RunScript`
+arguments by name.
 
-1. In Rhino, draw a closed polyline representing your lot
-2. In Grasshopper, add a `Curve` parameter (Params → Geometry → Curve)
-3. Right-click → **Set One Curve** and select your polyline
-4. Connect it to the `SiteBoundary` input
+### 4. Set up outputs
 
-### 6. Run It
+Right-click each output (`out`, `a`) and rename, adding more with `z+`:
 
-1. Set the JSON path (or leave empty to use defaults)
-2. Adjust sliders for unit count, ceiling height, target size
-3. The script will:
-   - Calculate setbacks and create the feasible envelope
-   - Generate massing based on your program inputs
-   - Validate against all R1 constraints
-   - Output green massing if compliant, red if not
+| Output | Rename to | Wire to |
+|--------|-----------|---------|
+| `out` | `Massing` | (preview is automatic) |
+| `a` | `Envelope` | (preview is automatic) |
+| + | `Compliance` | A `Panel` (Params → Input → Panel) |
+| + | `IsValid` | A `Panel` |
+| + | `DebugInfo` | A `Panel` |
 
-## Example Workflow
+### 5. Run it
 
 ```
-[Curve: Site Polygon] ──┐
-                        ├──[C# Script]──[Massing (Brep)]──[Preview]
-[Slider: UnitCount] ────┤         └──[Compliance (String)]──[Panel]
-[Slider: CeilingHeight]─┘
+[Curve param: lot] ──── SiteBoundary ─┐
+[Panel: JSON path] ──── JsonPath ─────┤
+[Slider 1–4] ────────── UnitCount ────┤                  ├─ Massing
+[Slider 2.4–3.0] ────── CeilingHeight ┼──[C# Script]─────┼─ Envelope
+[Slider 60–120] ─────── TargetUnitSize┘                  ├─ Compliance → Panel
+                                                       ├─ IsValid → Panel
+                                                       └─ DebugInfo → Panel
 ```
+
+Expected result with defaults on the 15×30 lot (1 unit, 80 sqm, 2.7m ceilings):
+**COMPLIANT** — 1 storey, 80 sqm footprint, FSR 0.178, coverage 0.178.
+
+Try `UnitCount = 2` to see it go **NON-COMPLIANT** (R1 is single-detached only,
+`max_units = 1`).
 
 ## Troubleshooting
 
 | Problem | Solution |
 |---------|----------|
-| "Newtonsoft.Json not found" | Add the DLL in Manage Assemblies |
-| "SiteBoundary is null" | Connect a closed curve to the input |
-| "Setback offset failed" | Your setbacks may be too large for the lot. Reduce them or use a larger site. |
-| Massing is red | Check the Compliance output to see which constraint was violated |
-| No JSON file | The script uses embedded defaults, but you should use the real `sudbury_r1_constraints.json` |
+| "SiteBoundary input is null" | Connect a closed curve; check the Type hint is `Curve` |
+| "Setback offset failed" | Setbacks too large for the lot — draw a bigger site |
+| "Constraint not found in JSON: ..." | The JSON schema changed; check the path named in the error |
+| Compile error after pasting | Make sure you deleted ALL default code before pasting |
+| Nothing previews | Grasshopper previews Breps by default — check the component isn't hidden (right-click → Preview) |
+
+## Notes & Limitations
+
+- **Simplified setback model**: the envelope uses a uniform inset (minimum of
+  all setbacks). The true R1 envelope (drawn on the `Reference` layer) is
+  larger on the side yards. Distinguishing front/rear/side edges requires lot
+  orientation — future work.
+- **Massing is program-driven**: footprint = (units × target size) ÷ storeys,
+  capped by both the envelope and the lot-coverage rule. Storeys are the
+  minimum that fits the program, capped by `max_storeys`.
+- If the program doesn't fit within coverage × storeys caps, the massing is
+  capped and a warning appears in the Compliance report.
 
 ## Next Steps
 
-- [ ] Add more zoning rules (parking, side setbacks, corner lots)
-- [ ] Read JSON from URL instead of file path
-- [ ] Add color coding to the Rhino viewport (green = valid, red = invalid)
-- [ ] Generate floor plates per storey
-- [ ] Export compliance report to PDF
-
-## Notes
-
-- This is a **simplified setback model**. Real setback calculation needs to know which edge is front/rear/side (requires lot orientation).
-- The envelope uses uniform setback (minimum of all setbacks). For more accuracy, you'll need to identify front vs side edges.
-- FSR calculation is simplified: footprint × storeys / site area.
+- [ ] Edge classification (front/rear/side) from lot orientation
+- [ ] Corner-lot logic (`side_exterior` setback)
+- [ ] Parking layout check (2 spaces/unit, 2.6m × 5.2m each)
+- [ ] Floor-plate slicing per storey
+- [ ] Color preview via a Custom Preview component keyed on `IsValid`
+- [ ] Export compliance report to JSON for `ls-obc` (Phase 2)
 
 ---
 
