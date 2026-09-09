@@ -895,6 +895,15 @@ fn create_instance(
         extensions.push(ash::ext::debug_utils::NAME.as_ptr());
     }
 
+    // MoltenVK is a portability driver: the Vulkan loader hides portability
+    // ICDs unless the instance opts in via ENUMERATE_PORTABILITY_KHR +
+    // VK_KHR_portability_enumeration (required on macOS).
+    #[cfg(target_os = "macos")]
+    {
+        extensions.push(c"VK_KHR_portability_enumeration".as_ptr());
+        extensions.push(ash::khr::get_physical_device_properties2::NAME.as_ptr());
+    }
+
     let layers: Vec<*const i8> = if config.enable_validation {
         vec![c"VK_LAYER_KHRONOS_validation".as_ptr()]
     } else {
@@ -905,6 +914,9 @@ fn create_instance(
         .application_info(&app_info)
         .enabled_extension_names(&extensions)
         .enabled_layer_names(&layers);
+
+    #[cfg(target_os = "macos")]
+    let create_info = create_info.flags(vk::InstanceCreateFlags::ENUMERATE_PORTABILITY_KHR);
 
     unsafe { entry.create_instance(&create_info, None) }.context("failed to create Vulkan instance")
 }
@@ -1092,11 +1104,17 @@ fn create_logical_device(
     indexing.descriptor_binding_uniform_buffer_update_after_bind = vk::TRUE;
 
     // Headless: no swapchain extension.
-    let device_extensions: Vec<*const i8> = if config.headless {
+    let mut device_extensions: Vec<*const i8> = if config.headless {
         Vec::new()
     } else {
         vec![ash::khr::swapchain::NAME.as_ptr()]
     };
+    // MoltenVK exposes VK_KHR_portability_subset; when present the spec
+    // requires it to be enabled (macOS).
+    #[cfg(target_os = "macos")]
+    {
+        device_extensions.push(c"VK_KHR_portability_subset".as_ptr());
+    }
 
     let create_info = vk::DeviceCreateInfo::default()
         .queue_create_infos(&queue_infos)
