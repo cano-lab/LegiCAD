@@ -1,0 +1,6 @@
+# Rust
+target/
+pipeline_cache.bin
+
+# macOS
+.DS_Store
