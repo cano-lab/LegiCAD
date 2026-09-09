@@ -806,7 +806,7 @@ impl Renderer {
         &mut self,
         camera: &Camera,
         draws: &[DrawItem],
-        #[cfg(feature = "ui")] ui_frame: Option<UiFrame>,
+        #[cfg(feature = "ui")] mut ui_frame: Option<UiFrame>,
     ) -> Result<bool> {
         let device = self.ctx().device().clone();
         let frame = &self.frames[self.current_frame];
@@ -828,9 +828,19 @@ impl Renderer {
         let ui_ctx: &VulkanContext = unsafe { &*self.ctx };
 
         // Upload egui textures (font atlas on frame 1) before recording.
+        // The TexturesDelta is taken out of the UiFrame and fully consumed
+        // here: epaint panics if a TexturesDelta drops with unapplied
+        // deltas, and the early-return paths below (swapchain out of date,
+        // acquire errors) would otherwise do exactly that.
         #[cfg(feature = "ui")]
-        if let (Some(overlay), Some(frame_data)) = (&mut self.ui, &ui_frame) {
-            overlay.set_textures(ui_ctx, &frame_data.textures_delta)?;
+        let mut texture_frees: Vec<egui::TextureId> = Vec::new();
+        #[cfg(feature = "ui")]
+        if let (Some(overlay), Some(frame_data)) = (&mut self.ui, &mut ui_frame) {
+            let mut delta = std::mem::take(&mut frame_data.textures_delta);
+            let upload = overlay.set_textures(ui_ctx, &delta);
+            texture_frees = delta.free.iter().copied().collect();
+            delta.clear();
+            upload?;
         }
 
         let acquire = unsafe {
@@ -1018,7 +1028,7 @@ impl Renderer {
                     frame_data.pixels_per_point,
                     &frame_data.primitives,
                 )?;
-                overlay.defer_free(frame_data.textures_delta.free.iter().copied().collect());
+                overlay.defer_free(std::mem::take(&mut texture_frees));
             }
 
             device.end_command_buffer(cmd)?;

@@ -248,6 +248,10 @@ impl App {
                     .set_cursor_grab(CursorGrabMode::Locked)
                     .or_else(|_| window.set_cursor_grab(CursorGrabMode::Confined))
                     .ok();
+                // winit 0.30's invisible cursor crashes on macOS 26
+                // (EXC_ARM_DA_ALIGN in ImageIO parsing winit's embedded
+                // cursor GIF) — keep the cursor visible there.
+                #[cfg(not(target_os = "macos"))]
                 window.set_cursor_visible(false);
             } else {
                 window.set_cursor_grab(CursorGrabMode::None).ok();
