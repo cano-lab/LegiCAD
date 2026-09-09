@@ -23,6 +23,10 @@ default = ["windowed"]
 # Headless (compute-only, e.g. batch path-traced renders) builds without winit:
 #   cargo check -p archengine-viewer --no-default-features
 windowed = ["dep:winit", "ash-window", "raw-window-handle"]
+# Intel Open Image Denoise for the path tracer's HDR output (M1 target:
+# `brew install open-image-denoise`, discovered via pkg-config). Without
+# this feature the verbatim 3×3 CPU filter is used instead.
+denoise-oidn = ["dep:oidn"]
 
 [dependencies]
 archengine-geometry = { path = "../geometry" }
@@ -38,6 +42,7 @@ anyhow.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+oidn = { version = "2", optional = true }
 
 [build-dependencies]
 shaderc.workspace = true

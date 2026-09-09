@@ -6,9 +6,9 @@
 //! layouts (`GpuBvhNode` 32B, `GpuTriangle` 48B, `GpuPtMaterial` 64B) were
 //! designed for this shader and port verbatim.
 //!
-//! Deferred from the C++ (tracked in the port notes):
-//! - OIDN denoising — the C++ only ships the 3×3 edge-aware CPU filter,
-//!   which is ported verbatim.
+//! Denoising: OIDN's `RT` filter via the `denoise-oidn` cargo feature (the
+//! C++ only had a TODO comment); without the feature the verbatim 3×3
+//! edge-aware CPU filter from the C++ is used (see [`crate::denoise`]).
 //!
 //! The Polyhaven texture array (`loadMaterialTextures` /
 //! `updateMaterialTextureIndices`) lives in [`super::textures`] and is
@@ -1151,9 +1151,31 @@ impl<'ctx> PathTracer<'ctx> {
         Ok(())
     }
 
-    /// 3×3 edge-aware CPU filter, verbatim from C++ `applyDenoising`
-    /// (luminance-weighted bilateral-ish). OIDN remains future work upstream.
+    /// Denoise the HDR result: OIDN's `RT` filter when the `denoise-oidn`
+    /// feature is compiled in (the C++ only left a TODO comment for this),
+    /// otherwise the verbatim 3×3 edge-aware CPU filter from C++
+    /// `applyDenoising` (luminance-weighted bilateral-ish).
     fn apply_denoising(&mut self) {
+        match crate::denoise::denoise_oidn(
+            &mut self.hdr_pixels,
+            self.config.width,
+            self.config.height,
+        ) {
+            Ok(()) => {
+                tracing::info!("[PathTracer] denoised with OIDN (RT filter)");
+                return;
+            }
+            Err(e) => {
+                tracing::debug!(error = %e, "[PathTracer] OIDN unavailable — 3x3 CPU filter");
+            }
+        }
+        self.apply_denoising_cpu();
+    }
+
+    /// 3×3 edge-aware CPU filter, verbatim from C++ `applyDenoising`
+    /// (luminance-weighted bilateral-ish). Fallback when OIDN is not
+    /// compiled in or fails at runtime.
+    fn apply_denoising_cpu(&mut self) {
         let (w, h) = (self.config.width as usize, self.config.height as usize);
         let mut filtered = vec![0.0f32; w * h * 4];
         let lum = |c: Vec3| 0.2126 * c.x + 0.7152 * c.y + 0.0722 * c.z;

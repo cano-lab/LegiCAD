@@ -26,10 +26,12 @@
 //!   the app supplies a `window_size: impl Fn() -> (u32, u32)` at
 //!   construction (winit owns the window).
 //!
-//! Deferred but committed to re-adding (see `questions.md` A4 checklist):
-//! environment-map IBL, Polyhaven texture array, OIDN denoise, ImGui.
+//! Re-added from the deferred list (see `questions.md` A4 checklist):
+//! environment-map IBL, Polyhaven texture array, OIDN denoise (cargo
+//! feature `denoise-oidn`). Still pending: ImGui overlay.
 
 pub mod camera;
+pub mod denoise;
 #[cfg(feature = "windowed")]
 pub mod app;
 pub mod scene;
