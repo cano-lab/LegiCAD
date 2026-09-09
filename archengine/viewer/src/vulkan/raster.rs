@@ -1,11 +1,12 @@
 //! Real-time raster renderer — the interactive "game" half of the viewer.
 //!
-//! Port of the C++ `Renderer` core draw path (`renderer.cpp`), reduced to
-//! what the demo milestone needs: one graphics pipeline (`simple.vert/frag`
-//! — a minimal stand-in for `structural.*` until the texture/shadow/IBL
-//! stack is re-added; see questions.md A4), MSAA + depth render pass
-//! straight to the swapchain, per-frame uniform buffers, push-constant
-//! model/color per draw.
+//! Port of the C++ `Renderer` core draw path (`renderer.cpp`): the full
+//! `structural.vert/frag` material stack (Cook-Torrance PBR, split-sum IBL,
+//! per-element push-constant overrides, stress colouring, glass alpha) over
+//! the MSAA + depth render pass into the swapchain. Shadow mapping and the
+//! bloom/SSAO/SSR post chain are still deferred (the fragment shader gates
+//! them off via `enableShadows == 0` / `outputLinearHDR == 0`; `simple.*`
+//! stays in `shaders/` as a debugging fallback).
 //!
 //! Conventions carried over from the C++:
 //! - Positive viewport height with `proj[1][1] *= -1` applied by the
@@ -27,10 +28,10 @@ use super::ubo::SharedUbo;
 use crate::ui::overlay::UiFrame;
 use crate::camera::Camera;
 
-const SIMPLE_VERT_SPV: &[u8] =
-    include_bytes!(concat!(env!("OUT_DIR"), "/spirv/simple.vert.spv"));
-const SIMPLE_FRAG_SPV: &[u8] =
-    include_bytes!(concat!(env!("OUT_DIR"), "/spirv/simple.frag.spv"));
+const STRUCTURAL_VERT_SPV: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/spirv/structural.vert.spv"));
+const STRUCTURAL_FRAG_SPV: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/spirv/structural.frag.spv"));
 const SKY_VERT_SPV: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/spirv/sky.vert.spv"));
 const SKY_FRAG_SPV: &[u8] =
@@ -64,23 +65,58 @@ impl From<&Vertex> for GpuVertex {
     }
 }
 
-/// Matches `simple.vert`'s `SimpleUbo` block (std140).
-#[repr(C)]
-#[derive(Debug, Clone, Copy)]
-pub struct SimpleUbo {
-    pub view: Mat4,
-    pub proj: Mat4,
-    /// xyz = sun direction, w = intensity (same default as the path tracer).
-    pub light_direction: Vec4,
-}
-
-/// Matches `simple.vert`'s push-constant block.
+/// Matches `structural.vert`'s push-constant block (C++ `PushConstants`,
+/// renderer.cpp): per-draw model transform, colour/stress, PBR material
+/// multipliers and the element-override stack. 160 bytes — within
+/// MoltenVK's 4 KiB push-constant limit.
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct PushConstants {
     pub model: Mat4,
     /// RGB = albedo override, A = stress (C++ convention).
     pub color: Vec4,
+    /// x = metallic, y = roughness, z = ao, w = emission (multipliers over
+    /// the material textures — with placeholder-white textures these ARE
+    /// the effective values).
+    pub material: Vec4,
+    /// Bitfield: which element overrides are active (`OVERRIDE_*` in
+    /// ubo.glsl). Zero = none.
+    pub override_mask: u32,
+    pub _pad: [f32; 3],
+    /// x = uvScale, y = normalStrength, z = brightness, w = contrast.
+    pub overrides1: Vec4,
+    /// x = saturation, y = roughness, z = metallic, w = aoStrength.
+    pub overrides2: Vec4,
+    /// rgb = tint, w = uvRotation (radians).
+    pub overrides3: Vec4,
+}
+
+const _: () = assert!(std::mem::size_of::<PushConstants>() == 160);
+
+/// C++ renderer defaults (renderer.hpp member initializers), applied to the
+/// per-frame [`SharedUbo`] in `draw_frame`.
+fn frame_ubo(view: Mat4, proj: Mat4, sun: Vec3) -> SharedUbo {
+    use super::ubo::{EFFECT_DIRECT_LIGHT, EFFECT_IBL, EFFECT_NORMAL_MAPPING};
+    SharedUbo {
+        view,
+        proj,
+        light_direction: sun.extend(0.0),
+        shadow_bias: 0.002,
+        output_linear_hdr: 0, // tonemap in-shader (no composite pass yet)
+        exposure: 1.0,
+        tessellation_level: 1.0,
+        // uvScale=1, normalStrength=1, brightness=0, contrast=1
+        // (renderer.cpp:5810).
+        material_params: Vec4::new(1.0, 1.0, 0.0, 1.0),
+        // saturation=1, roughnessOffset=0, metallicOffset=0, aoStrength=1.
+        material_params2: Vec4::new(1.0, 0.0, 0.0, 1.0),
+        material_tint: Vec4::ONE,
+        // IBL on: overall=1, diffuse=1, specular=0.4 ("reduced to prevent
+        // white film"), fresnel=0.6 (renderer.hpp:1567-1570).
+        ibl_params: Vec4::new(1.0, 1.0, 0.4, 0.6),
+        effect_flags: EFFECT_IBL | EFFECT_DIRECT_LIGHT | EFFECT_NORMAL_MAPPING,
+        ..Default::default()
+    }
 }
 
 /// An uploaded mesh: device-local vertex + index buffers.
@@ -92,13 +128,17 @@ pub struct GpuMesh {
     pub index_count: u32,
 }
 
-/// One draw call: mesh + model transform + color/stress override.
-/// A zero-ish color RGB falls back to the vertex colors (as
-/// `structural.vert`).
+/// One draw call: mesh + model transform + color/stress override + PBR
+/// material multipliers. A zero-ish color RGB falls back to white so the
+/// (placeholder) albedo texture shows through — per-draw colour comes from
+/// `color` (C++ sets it per element; `structural.vert` ignores the vertex
+/// colour attribute).
 pub struct DrawItem<'a> {
     pub mesh: &'a GpuMesh,
     pub model: Mat4,
     pub color: Vec4,
+    /// x = metallic, y = roughness, z = ao, w = emission.
+    pub material: Vec4,
 }
 
 struct FrameSync {
@@ -115,6 +155,227 @@ struct FrameSync {
 }
 
 unsafe impl Send for FrameSync {}
+
+/// 1×1 stand-ins that keep every `structural.frag` texture binding valid
+/// until the real material/shadow stack lands. Chosen so the shader's own
+/// fallbacks do the right thing:
+/// - albedo/roughness/metallic/ao/opacity/height: **white** (multiplier 1,
+///   so push-constant material values pass through),
+/// - normal: **flat** (0.5, 0.5, 1.0) — the shader's
+///   `length(texNormal - flat) > 0.01` check skips normal mapping,
+/// - emissive / BRDF LUT: **black** — emissive falls back to albedo×0 and
+///   the LUT to its Schlick approximation,
+/// - shadow: 1×1 depth cleared to 1.0 + comparison sampler (never sampled
+///   while `enableShadows == 0`).
+struct PlaceholderTextures {
+    white_image: vk::Image,
+    white_memory: vk::DeviceMemory,
+    white_view: vk::ImageView,
+    normal_image: vk::Image,
+    normal_memory: vk::DeviceMemory,
+    normal_view: vk::ImageView,
+    black_image: vk::Image,
+    black_memory: vk::DeviceMemory,
+    black_view: vk::ImageView,
+    /// Linear/repeat sampler shared by all 2D placeholders.
+    sampler: vk::Sampler,
+    shadow_image: vk::Image,
+    shadow_memory: vk::DeviceMemory,
+    shadow_view: vk::ImageView,
+    shadow_sampler: vk::Sampler,
+}
+
+impl PlaceholderTextures {
+    fn new(ctx: &VulkanContext) -> Result<Self> {
+        let device = ctx.device();
+        let make_solid = |rgba: [u8; 4]| -> Result<(vk::Image, vk::DeviceMemory, vk::ImageView)> {
+            let (image, memory) = ctx.create_image(
+                1,
+                1,
+                vk::Format::R8G8B8A8_UNORM,
+                vk::ImageTiling::OPTIMAL,
+                vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED,
+                vk::MemoryPropertyFlags::DEVICE_LOCAL,
+                vk::SampleCountFlags::TYPE_1,
+            )?;
+            ctx.transition_image_layout(
+                image,
+                vk::Format::R8G8B8A8_UNORM,
+                vk::ImageLayout::UNDEFINED,
+                vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                1,
+                1,
+            )?;
+            let (staging, staging_mem) = ctx.create_buffer(
+                4,
+                vk::BufferUsageFlags::TRANSFER_SRC,
+                vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
+            )?;
+            unsafe {
+                let mapped = device.map_memory(staging_mem, 0, 4, vk::MemoryMapFlags::empty())?;
+                std::ptr::copy_nonoverlapping(rgba.as_ptr(), mapped.cast::<u8>(), 4);
+                device.unmap_memory(staging_mem);
+            }
+            ctx.copy_buffer_to_image(staging, image, 1, 1)?;
+            unsafe {
+                device.destroy_buffer(staging, None);
+                device.free_memory(staging_mem, None);
+            }
+            ctx.transition_image_layout(
+                image,
+                vk::Format::R8G8B8A8_UNORM,
+                vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                1,
+                1,
+            )?;
+            let view =
+                ctx.create_image_view(image, vk::Format::R8G8B8A8_UNORM, vk::ImageAspectFlags::COLOR)?;
+            Ok((image, memory, view))
+        };
+
+        let (white_image, white_memory, white_view) = make_solid([255, 255, 255, 255])?;
+        let (normal_image, normal_memory, normal_view) = make_solid([128, 128, 255, 255])?;
+        let (black_image, black_memory, black_view) = make_solid([0, 0, 0, 255])?;
+
+        let sampler_info = vk::SamplerCreateInfo::default()
+            .mag_filter(vk::Filter::LINEAR)
+            .min_filter(vk::Filter::LINEAR)
+            .address_mode_u(vk::SamplerAddressMode::REPEAT)
+            .address_mode_v(vk::SamplerAddressMode::REPEAT)
+            .address_mode_w(vk::SamplerAddressMode::REPEAT);
+        let sampler = unsafe { device.create_sampler(&sampler_info, None) }
+            .context("placeholder 2D sampler")?;
+
+        // Shadow placeholder: 1×1 depth cleared to 1.0 (far) so an
+        // accidental sample compares "lit"; gated off in the UBO anyway.
+        let (shadow_image, shadow_memory) = ctx.create_image(
+            1,
+            1,
+            vk::Format::D32_SFLOAT,
+            vk::ImageTiling::OPTIMAL,
+            vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED,
+            vk::MemoryPropertyFlags::DEVICE_LOCAL,
+            vk::SampleCountFlags::TYPE_1,
+        )?;
+        ctx.transition_image_layout(
+            shadow_image,
+            vk::Format::D32_SFLOAT,
+            vk::ImageLayout::UNDEFINED,
+            vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+            1,
+            1,
+        )?;
+        let cmd = ctx.begin_single_time_commands()?;
+        let clear = vk::ClearDepthStencilValue {
+            depth: 1.0,
+            stencil: 0,
+        };
+        let range = [vk::ImageSubresourceRange {
+            aspect_mask: vk::ImageAspectFlags::DEPTH,
+            base_mip_level: 0,
+            level_count: 1,
+            base_array_layer: 0,
+            layer_count: 1,
+        }];
+        unsafe {
+            device.cmd_clear_depth_stencil_image(
+                cmd,
+                shadow_image,
+                vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                &clear,
+                &range,
+            );
+        }
+        ctx.end_single_time_commands(cmd)?;
+        ctx.transition_image_layout(
+            shadow_image,
+            vk::Format::D32_SFLOAT,
+            vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+            vk::ImageLayout::DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+            1,
+            1,
+        )?;
+        let shadow_view = ctx.create_image_view(
+            shadow_image,
+            vk::Format::D32_SFLOAT,
+            vk::ImageAspectFlags::DEPTH,
+        )?;
+        let shadow_sampler_info = vk::SamplerCreateInfo::default()
+            .mag_filter(vk::Filter::LINEAR)
+            .min_filter(vk::Filter::LINEAR)
+            .compare_enable(true)
+            .compare_op(vk::CompareOp::LESS_OR_EQUAL);
+        let shadow_sampler = unsafe { device.create_sampler(&shadow_sampler_info, None) }
+            .context("placeholder shadow sampler")?;
+
+        Ok(Self {
+            white_image,
+            white_memory,
+            white_view,
+            normal_image,
+            normal_memory,
+            normal_view,
+            black_image,
+            black_memory,
+            black_view,
+            sampler,
+            shadow_image,
+            shadow_memory,
+            shadow_view,
+            shadow_sampler,
+        })
+    }
+
+    /// Descriptor info for the sampler2DShadow binding (set 0, binding 1).
+    fn shadow_info(&self) -> vk::DescriptorImageInfo {
+        vk::DescriptorImageInfo::default()
+            .sampler(self.shadow_sampler)
+            .image_view(self.shadow_view)
+            .image_layout(vk::ImageLayout::DEPTH_STENCIL_READ_ONLY_OPTIMAL)
+    }
+
+    /// Per-binding infos for the material texture set (set 1, bindings
+    /// 0-7): albedo, normal, roughness, metallic, ao, emissive, opacity,
+    /// height.
+    fn material_infos(&self) -> [vk::DescriptorImageInfo; 8] {
+        let two_d = |view| {
+            vk::DescriptorImageInfo::default()
+                .sampler(self.sampler)
+                .image_view(view)
+                .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+        };
+        [
+            two_d(self.white_view),       // albedo
+            two_d(self.normal_view),      // normal
+            two_d(self.white_view),       // roughness
+            two_d(self.white_view),       // metallic
+            two_d(self.white_view),       // ao
+            two_d(self.black_view),       // emissive
+            two_d(self.white_view),       // opacity
+            two_d(self.white_view),       // height
+        ]
+    }
+
+    fn destroy(&self, device: &ash::Device) {
+        unsafe {
+            device.destroy_sampler(self.sampler, None);
+            device.destroy_image_view(self.white_view, None);
+            device.destroy_image(self.white_image, None);
+            device.free_memory(self.white_memory, None);
+            device.destroy_image_view(self.normal_view, None);
+            device.destroy_image(self.normal_image, None);
+            device.free_memory(self.normal_memory, None);
+            device.destroy_image_view(self.black_view, None);
+            device.destroy_image(self.black_image, None);
+            device.free_memory(self.black_memory, None);
+            device.destroy_sampler(self.shadow_sampler, None);
+            device.destroy_image_view(self.shadow_view, None);
+            device.destroy_image(self.shadow_image, None);
+            device.free_memory(self.shadow_memory, None);
+        }
+    }
+}
 
 /// The raster renderer. Holds a raw pointer to the windowed
 /// [`VulkanContext`], mirroring the C++ (`Renderer` keeps `VulkanContext*`).
@@ -148,10 +409,28 @@ pub struct Renderer {
     /// setup — kept alive by this field for the renderer's lifetime.
     #[allow(dead_code)]
     default_cube: EnvironmentMap,
-    /// xyz = sun direction (matches `SimpleUbo::light_direction`), w = use HDR cubemap.
+    /// xyz = sun direction (matches `SharedUbo::light_direction`), w = use HDR cubemap.
     sky_push: Vec4,
     /// Draw the sky pass (UI: Render Settings → Environment → Draw sky).
     sky_enabled: bool,
+
+    // ── structural.* material-stack bindings ─────────────────────────────
+    /// Set 1: per-material textures (bindings 0-7). Placeholder-bound until
+    /// the Polyhaven raster integration lands (questions.md A4).
+    material_ds_layout: vk::DescriptorSetLayout,
+    material_set: vk::DescriptorSet,
+    /// Set 2: IBL (irradiance / prefiltered / BRDF LUT, bindings 0-2).
+    ibl_ds_layout: vk::DescriptorSetLayout,
+    ibl_set: vk::DescriptorSet,
+    /// Keeps all placeholder images/samplers alive.
+    placeholders: PlaceholderTextures,
+    /// Black 1×1 cubemaps for the IBL bindings before an HDRI is loaded —
+    /// the fragment shader's `length < 0.001` fallbacks kick in (gradient
+    /// ambient + Schlick BRDF approximation).
+    #[allow(dead_code)]
+    default_ibl_irradiance: EnvironmentMap,
+    #[allow(dead_code)]
+    default_ibl_prefiltered: EnvironmentMap,
 
     /// egui overlay (dedicated 1-sample pass over the resolved swapchain
     /// image — see `ui::overlay`). Created lazily by [`Self::init_ui`].
@@ -164,9 +443,17 @@ impl Renderer {
         let device = ctx.device();
         let render_pass = create_render_pass(ctx)?;
         let descriptor_set_layout = create_descriptor_set_layout(device)?;
+        let material_ds_layout = create_material_ds_layout(device)?;
+        let ibl_ds_layout = create_ibl_ds_layout(device)?;
         let descriptor_pool = create_descriptor_pool(device, ctx.max_frames_in_flight())?;
-        let (pipeline_layout, pipeline) =
-            create_pipeline(ctx, render_pass, descriptor_set_layout)?;
+        let (pipeline_layout, pipeline) = create_pipeline(
+            ctx,
+            render_pass,
+            descriptor_set_layout,
+            material_ds_layout,
+            ibl_ds_layout,
+        )?;
+        let placeholders = PlaceholderTextures::new(ctx)?;
 
         // Per-frame uniform buffers (persistently mapped) + sync + commands.
         let mut frames = Vec::new();
@@ -178,7 +465,7 @@ impl Renderer {
             .context("allocate frame command buffers")?;
         for i in 0..ctx.max_frames_in_flight() {
             let (ubo_buffer, ubo_memory) = ctx.create_buffer(
-                std::mem::size_of::<SimpleUbo>() as vk::DeviceSize,
+                std::mem::size_of::<SharedUbo>() as vk::DeviceSize,
                 vk::BufferUsageFlags::UNIFORM_BUFFER,
                 vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
             )?;
@@ -186,7 +473,7 @@ impl Renderer {
                 device.map_memory(
                     ubo_memory,
                     0,
-                    std::mem::size_of::<SimpleUbo>() as vk::DeviceSize,
+                    std::mem::size_of::<SharedUbo>() as vk::DeviceSize,
                     vk::MemoryMapFlags::empty(),
                 )?
             };
@@ -231,14 +518,72 @@ impl Renderer {
             let info = [vk::DescriptorBufferInfo::default()
                 .buffer(frames[i].ubo_buffer)
                 .offset(0)
-                .range(std::mem::size_of::<SimpleUbo>() as vk::DeviceSize)];
-            let write = [vk::WriteDescriptorSet::default()
-                .dst_set(set)
-                .dst_binding(0)
-                .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-                .buffer_info(&info)];
-            unsafe { device.update_descriptor_sets(&write, &[]) };
+                .range(std::mem::size_of::<SharedUbo>() as vk::DeviceSize)];
+            let shadow_info = [placeholders.shadow_info()];
+            let writes = [
+                vk::WriteDescriptorSet::default()
+                    .dst_set(set)
+                    .dst_binding(0)
+                    .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+                    .buffer_info(&info),
+                // sampler2DShadow placeholder — never sampled while
+                // ubo.enableShadows == 0, but the binding must be valid.
+                vk::WriteDescriptorSet::default()
+                    .dst_set(set)
+                    .dst_binding(1)
+                    .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                    .image_info(&shadow_info),
+            ];
+            unsafe { device.update_descriptor_sets(&writes, &[]) };
         }
+
+        // Set 1 (material textures) + set 2 (IBL): single sets, static.
+        // Placeholder bindings until real materials / an HDRI are bound.
+        let static_layouts = [material_ds_layout, ibl_ds_layout];
+        let static_alloc = vk::DescriptorSetAllocateInfo::default()
+            .descriptor_pool(descriptor_pool)
+            .set_layouts(&static_layouts);
+        let static_sets = unsafe { device.allocate_descriptor_sets(&static_alloc) }
+            .context("allocate material/IBL descriptor sets")?;
+        let (material_set, ibl_set) = (static_sets[0], static_sets[1]);
+
+        let material_infos = placeholders.material_infos();
+        let material_writes: Vec<vk::WriteDescriptorSet> = (0..8u32)
+            .map(|binding| {
+                vk::WriteDescriptorSet::default()
+                    .dst_set(material_set)
+                    .dst_binding(binding)
+                    .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                    .image_info(std::slice::from_ref(&material_infos[binding as usize]))
+            })
+            .collect();
+        unsafe { device.update_descriptor_sets(&material_writes, &[]) };
+
+        // Black 1×1 cubemaps → shader's IBL fallbacks (gradient ambient,
+        // Schlick BRDF) until set_environment binds a real HDRI.
+        let mut default_ibl_irradiance = EnvironmentMap::new(ctx)?;
+        default_ibl_irradiance.create_solid([0.0, 0.0, 0.0])?;
+        let mut default_ibl_prefiltered = EnvironmentMap::new(ctx)?;
+        default_ibl_prefiltered.create_solid([0.0, 0.0, 0.0])?;
+        let ibl_placeholder_infos = [
+            default_ibl_irradiance.descriptor_info(),
+            default_ibl_prefiltered.descriptor_info(),
+            // BRDF LUT placeholder shares the black 2D texture.
+            vk::DescriptorImageInfo::default()
+                .sampler(placeholders.sampler)
+                .image_view(placeholders.black_view)
+                .image_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL),
+        ];
+        let ibl_writes: Vec<vk::WriteDescriptorSet> = (0..3u32)
+            .map(|binding| {
+                vk::WriteDescriptorSet::default()
+                    .dst_set(ibl_set)
+                    .dst_binding(binding)
+                    .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                    .image_info(std::slice::from_ref(&ibl_placeholder_infos[binding as usize]))
+            })
+            .collect();
+        unsafe { device.update_descriptor_sets(&ibl_writes, &[]) };
 
         // ── Sky pass resources ──────────────────────────────────────────
         // Placeholder cubemap keeps sky binding 1 valid until a real HDRI
@@ -309,6 +654,13 @@ impl Renderer {
             default_cube,
             sky_push,
             sky_enabled: true,
+            material_ds_layout,
+            material_set,
+            ibl_ds_layout,
+            ibl_set,
+            placeholders,
+            default_ibl_irradiance,
+            default_ibl_prefiltered,
             #[cfg(feature = "ui")]
             ui: None,
         };
@@ -333,14 +685,17 @@ impl Renderer {
         unsafe { &mut *self.ctx }
     }
 
-    /// Bind an environment cubemap for the sky pass (binding 1 of the sky
-    /// descriptor sets). `use_hdr` selects the cubemap path in `sky.frag`;
-    /// `false` keeps the procedural gradient sky (the cubemap stays bound
-    /// but unused). The caller keeps the [`EnvironmentMap`] alive.
-    pub fn set_environment(&mut self, info: vk::DescriptorImageInfo, use_hdr: bool) {
+    /// Bind an environment map for the sky pass (binding 1 of the sky
+    /// descriptor sets) and the structural pipeline's IBL set (set 2:
+    /// irradiance / prefiltered / BRDF LUT). `use_hdr` selects the cubemap
+    /// path in `sky.frag`; `false` keeps the procedural gradient sky (the
+    /// cubemap stays bound but unused). When the env has no generated IBL
+    /// textures the placeholder fallbacks stay bound. The caller keeps the
+    /// [`EnvironmentMap`] alive.
+    pub fn set_environment(&mut self, env: &EnvironmentMap, use_hdr: bool) {
         self.ctx().wait_idle();
         self.sky_push.w = if use_hdr { 1.0 } else { 0.0 };
-        let image_info = [info];
+        let image_info = [env.descriptor_info()];
         for &set in &self.sky_descriptor_sets {
             let write = [vk::WriteDescriptorSet::default()
                 .dst_set(set)
@@ -348,6 +703,27 @@ impl Renderer {
                 .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
                 .image_info(&image_info)];
             unsafe { self.ctx().device().update_descriptor_sets(&write, &[]) };
+        }
+
+        if env.has_ibl_textures() {
+            let ibl_infos = [
+                env.irradiance_descriptor_info(),
+                env.prefiltered_descriptor_info(),
+                env.brdf_lut_descriptor_info(),
+            ];
+            let ibl_writes: Vec<vk::WriteDescriptorSet> = (0..3u32)
+                .map(|binding| {
+                    vk::WriteDescriptorSet::default()
+                        .dst_set(self.ibl_set)
+                        .dst_binding(binding)
+                        .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                        .image_info(std::slice::from_ref(&ibl_infos[binding as usize]))
+                })
+                .collect();
+            unsafe {
+                self.ctx().device().update_descriptor_sets(&ibl_writes, &[]);
+            }
+            tracing::info!("[Renderer] IBL textures bound to structural pipeline (set 2)");
         }
     }
 
@@ -481,16 +857,16 @@ impl Renderer {
         let aspect = extent.width as f32 / extent.height as f32;
         let mut proj = camera.projection_matrix(aspect);
         proj.y_axis.y *= -1.0; // Vulkan Y-flip (renderer.cpp:1507)
-        let ubo = SimpleUbo {
-            view: camera.view_matrix(),
+        let ubo = frame_ubo(
+            camera.view_matrix(),
             proj,
-            light_direction: Vec3::new(-0.5, -1.0, -0.3).normalize().extend(1.0),
-        };
+            Vec3::new(-0.5, -1.0, -0.3).normalize(),
+        );
         unsafe {
             std::ptr::copy_nonoverlapping(
-                (&ubo as *const SimpleUbo).cast::<u8>(),
+                (&ubo as *const SharedUbo).cast::<u8>(),
                 frame.ubo_mapped.cast::<u8>(),
-                std::mem::size_of::<SimpleUbo>(),
+                std::mem::size_of::<SharedUbo>(),
             );
         }
 
@@ -589,7 +965,11 @@ impl Renderer {
                 vk::PipelineBindPoint::GRAPHICS,
                 self.pipeline_layout,
                 0,
-                &[self.descriptor_sets[self.current_frame]],
+                &[
+                    self.descriptor_sets[self.current_frame],
+                    self.material_set,
+                    self.ibl_set,
+                ],
                 &[],
             );
 
@@ -597,6 +977,12 @@ impl Renderer {
                 let push = PushConstants {
                     model: draw.model,
                     color: draw.color,
+                    material: draw.material,
+                    override_mask: 0,
+                    _pad: [0.0; 3],
+                    overrides1: Vec4::ZERO,
+                    overrides2: Vec4::ZERO,
+                    overrides3: Vec4::ZERO,
                 };
                 let push_bytes = std::slice::from_raw_parts(
                     (&push as *const PushConstants).cast::<u8>(),
@@ -769,6 +1155,9 @@ impl Drop for Renderer {
             device.destroy_pipeline_layout(self.pipeline_layout, None);
             device.destroy_descriptor_pool(self.descriptor_pool, None);
             device.destroy_descriptor_set_layout(self.descriptor_set_layout, None);
+            device.destroy_descriptor_set_layout(self.material_ds_layout, None);
+            device.destroy_descriptor_set_layout(self.ibl_ds_layout, None);
+            self.placeholders.destroy(&device);
             device.destroy_pipeline(self.sky_pipeline, None);
             device.destroy_pipeline_layout(self.sky_pipeline_layout, None);
             device.destroy_descriptor_pool(self.sky_descriptor_pool, None);
@@ -913,24 +1302,71 @@ fn depth_attachment(ctx: &VulkanContext, samples: vk::SampleCountFlags) -> vk::A
         .final_layout(vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
 }
 
+/// Set 0: shared UBO (binding 0) + shadow map (binding 1, sampler2DShadow).
 fn create_descriptor_set_layout(device: &ash::Device) -> Result<vk::DescriptorSetLayout> {
-    let bindings = [vk::DescriptorSetLayoutBinding::default()
-        .binding(0)
-        .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-        .descriptor_count(1)
-        .stage_flags(vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT)];
+    let bindings = [
+        vk::DescriptorSetLayoutBinding::default()
+            .binding(0)
+            .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+            .descriptor_count(1)
+            .stage_flags(vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT),
+        vk::DescriptorSetLayoutBinding::default()
+            .binding(1)
+            .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+            .descriptor_count(1)
+            .stage_flags(vk::ShaderStageFlags::FRAGMENT),
+    ];
     let info = vk::DescriptorSetLayoutCreateInfo::default().bindings(&bindings);
     unsafe { device.create_descriptor_set_layout(&info, None) }
         .context("raster descriptor set layout")
 }
 
+/// Set 1: material textures — albedo, normal, roughness, metallic, ao,
+/// emissive, opacity, height (bindings 0-7).
+fn create_material_ds_layout(device: &ash::Device) -> Result<vk::DescriptorSetLayout> {
+    let bindings: Vec<vk::DescriptorSetLayoutBinding> = (0..8u32)
+        .map(|binding| {
+            vk::DescriptorSetLayoutBinding::default()
+                .binding(binding)
+                .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                .descriptor_count(1)
+                .stage_flags(vk::ShaderStageFlags::FRAGMENT)
+        })
+        .collect();
+    let info = vk::DescriptorSetLayoutCreateInfo::default().bindings(&bindings);
+    unsafe { device.create_descriptor_set_layout(&info, None) }
+        .context("material descriptor set layout")
+}
+
+/// Set 2: IBL — irradiance cube, prefiltered cube, BRDF LUT (bindings 0-2).
+fn create_ibl_ds_layout(device: &ash::Device) -> Result<vk::DescriptorSetLayout> {
+    let bindings: Vec<vk::DescriptorSetLayoutBinding> = (0..3u32)
+        .map(|binding| {
+            vk::DescriptorSetLayoutBinding::default()
+                .binding(binding)
+                .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                .descriptor_count(1)
+                .stage_flags(vk::ShaderStageFlags::FRAGMENT)
+        })
+        .collect();
+    let info = vk::DescriptorSetLayoutCreateInfo::default().bindings(&bindings);
+    unsafe { device.create_descriptor_set_layout(&info, None) }
+        .context("IBL descriptor set layout")
+}
+
 fn create_descriptor_pool(device: &ash::Device, frames: u32) -> Result<vk::DescriptorPool> {
-    let sizes = [vk::DescriptorPoolSize::default()
-        .ty(vk::DescriptorType::UNIFORM_BUFFER)
-        .descriptor_count(frames)];
+    let sizes = [
+        vk::DescriptorPoolSize::default()
+            .ty(vk::DescriptorType::UNIFORM_BUFFER)
+            .descriptor_count(frames),
+        vk::DescriptorPoolSize::default()
+            .ty(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+            // set 0 shadow per frame + set 1 (8) + set 2 (3).
+            .descriptor_count(frames + 8 + 3),
+    ];
     let info = vk::DescriptorPoolCreateInfo::default()
         .pool_sizes(&sizes)
-        .max_sets(frames);
+        .max_sets(frames + 2);
     unsafe { device.create_descriptor_pool(&info, None) }.context("raster descriptor pool")
 }
 
@@ -938,10 +1374,12 @@ fn create_pipeline(
     ctx: &VulkanContext,
     render_pass: vk::RenderPass,
     set_layout: vk::DescriptorSetLayout,
+    material_layout: vk::DescriptorSetLayout,
+    ibl_layout: vk::DescriptorSetLayout,
 ) -> Result<(vk::PipelineLayout, vk::Pipeline)> {
     let device = ctx.device();
 
-    let set_layouts = [set_layout];
+    let set_layouts = [set_layout, material_layout, ibl_layout];
     let push_range = [vk::PushConstantRange::default()
         .stage_flags(vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT)
         .offset(0)
@@ -960,8 +1398,8 @@ fn create_pipeline(
         let info = vk::ShaderModuleCreateInfo::default().code(&code);
         unsafe { device.create_shader_module(&info, None) }.context("shader module")
     };
-    let vert = load_module(SIMPLE_VERT_SPV)?;
-    let frag = load_module(SIMPLE_FRAG_SPV)?;
+    let vert = load_module(STRUCTURAL_VERT_SPV)?;
+    let frag = load_module(STRUCTURAL_FRAG_SPV)?;
     let stages = [
         vk::PipelineShaderStageCreateInfo::default()
             .stage(vk::ShaderStageFlags::VERTEX)
@@ -1036,9 +1474,18 @@ fn create_pipeline(
         .depth_write_enable(true)
         .depth_compare_op(vk::CompareOp::LESS);
 
+    // Alpha blending ON (C++ main pipeline): structural.frag writes alpha
+    // < 1 for glass (roughness < 0.35); opaque surfaces write alpha = 1
+    // and blend to the same result as disabled.
     let blend_attachment = [vk::PipelineColorBlendAttachmentState::default()
         .color_write_mask(vk::ColorComponentFlags::RGBA)
-        .blend_enable(false)];
+        .blend_enable(true)
+        .src_color_blend_factor(vk::BlendFactor::SRC_ALPHA)
+        .dst_color_blend_factor(vk::BlendFactor::ONE_MINUS_SRC_ALPHA)
+        .color_blend_op(vk::BlendOp::ADD)
+        .src_alpha_blend_factor(vk::BlendFactor::ONE)
+        .dst_alpha_blend_factor(vk::BlendFactor::ONE_MINUS_SRC_ALPHA)
+        .alpha_blend_op(vk::BlendOp::ADD)];
     let color_blend =
         vk::PipelineColorBlendStateCreateInfo::default().attachments(&blend_attachment);
 

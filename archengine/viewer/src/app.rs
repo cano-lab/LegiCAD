@@ -31,6 +31,13 @@ use crate::vulkan::raster::{DrawItem, GpuMesh, Renderer};
 struct SceneMesh {
     gpu: GpuMesh,
     stress: f32,
+    /// Albedo push colour (`scene::material_color` palette) — structural.*
+    /// ignores vertex colours, so the per-element colour rides the push
+    /// constant instead.
+    color: Vec3,
+    /// PBR multipliers (`scene::material_props`): metallic, roughness, ao,
+    /// emission.
+    material: Vec4,
 }
 
 /// The renderer holds a raw pointer to the Vulkan context (mirroring the
@@ -122,7 +129,7 @@ impl ApplicationHandler for App {
         self.renderer
             .as_mut()
             .unwrap()
-            .set_environment(env.descriptor_info(), use_hdr);
+            .set_environment(&env, use_hdr);
         self.env = Some(env);
 
         // egui overlay: GPU side (render pass + pipelines) then the
@@ -304,7 +311,8 @@ impl App {
             .map(|m| DrawItem {
                 mesh: &m.gpu,
                 model: Mat4::IDENTITY, // meshes are built in world space
-                color: Vec4::new(0.0, 0.0, 0.0, m.stress),
+                color: m.color.extend(m.stress),
+                material: m.material,
             })
             .collect();
         if let Err(e) = renderer.draw_frame(&self.camera, &draws, ui_frame) {
@@ -366,7 +374,7 @@ impl App {
             {
                 Ok(env) => {
                     if let Some(renderer) = &mut self.renderer {
-                        renderer.set_environment(env.descriptor_info(), true);
+                        renderer.set_environment(&env, true);
                     }
                     self.env = Some(env);
                     tracing::info!(path = %path.display(), "HDRI environment loaded");
@@ -387,9 +395,18 @@ pub fn run_viewer(elements: &[StructuralElement], env_path: Option<PathBuf>) -> 
 
     // Convert the scene to meshes now; upload happens on the first redraw,
     // once the renderer exists (created in `resumed`).
-    let primitives: Vec<(archengine_geometry::mesh_gen::PrimitiveMesh, f32)> = elements
+    let primitives: Vec<PrimitiveEntry> = elements
         .iter()
-        .filter_map(|e| scene::element_to_mesh(e).map(|m| (m, e.stress)))
+        .filter_map(|e| {
+            scene::element_to_mesh(e).map(|m| {
+                (
+                    m,
+                    e.stress,
+                    scene::material_color(&e.material, e.element_type),
+                    scene::material_props(&e.material, e.element_type),
+                )
+            })
+        })
         .collect();
     if primitives.is_empty() {
         anyhow::bail!("scene produced no geometry");
@@ -399,7 +416,7 @@ pub fn run_viewer(elements: &[StructuralElement], env_path: Option<PathBuf>) -> 
     // Frame the scene: camera looks at the centroid from a 3/4 view.
     let mut min = Vec3::splat(f32::MAX);
     let mut max = Vec3::splat(f32::MIN);
-    for (mesh, _) in &primitives {
+    for (mesh, ..) in &primitives {
         for v in &mesh.vertices {
             min = min.min(v.position);
             max = max.max(v.position);
@@ -450,8 +467,16 @@ pub fn run_viewer(elements: &[StructuralElement], env_path: Option<PathBuf>) -> 
     Ok(())
 }
 
+/// Pending scene geometry: mesh + stress + push-constant colour/material.
+type PrimitiveEntry = (
+    archengine_geometry::mesh_gen::PrimitiveMesh,
+    f32,
+    Vec3,
+    Vec4,
+);
+
 struct UploadState {
-    pending: Option<Vec<(archengine_geometry::mesh_gen::PrimitiveMesh, f32)>>,
+    pending: Option<Vec<PrimitiveEntry>>,
 }
 
 /// ApplicationHandler that owns the upload-once logic and delegates all
@@ -467,8 +492,13 @@ impl ApplicationHandler for AppRunner<'_> {
         if let (Some(renderer), Some(prims)) = (&self.app.renderer, self.state.pending.take()) {
             self.app.meshes = prims
                 .into_iter()
-                .filter_map(|(mesh, stress)| match renderer.upload_mesh(&mesh) {
-                    Ok(gpu) => Some(SceneMesh { gpu, stress }),
+                .filter_map(|(mesh, stress, color, material)| match renderer.upload_mesh(&mesh) {
+                    Ok(gpu) => Some(SceneMesh {
+                        gpu,
+                        stress,
+                        color,
+                        material,
+                    }),
                     Err(e) => {
                         tracing::warn!("mesh upload failed: {e:#}");
                         None

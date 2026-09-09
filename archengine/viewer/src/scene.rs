@@ -7,7 +7,7 @@
 //! Elements carrying a custom [`MeshData`] (IFC/CSG) use it directly, with
 //! flat normals computed per face.
 
-use glam::{Vec2, Vec3};
+use glam::{Vec2, Vec3, Vec4};
 
 use archengine_geometry::domain::mesh::Vertex;
 use archengine_geometry::domain::{ElementType, StructuralElement};
@@ -43,6 +43,29 @@ pub fn material_color(material: &str, element_type: ElementType) -> Vec3 {
             ElementType::Door => Vec3::new(0.45, 0.30, 0.18),
             _ => Vec3::new(0.8, 0.8, 0.8),
         }
+    }
+}
+
+/// PBR material multipliers per material keyword (x = metallic,
+/// y = roughness, z = ao, w = emission), consumed by
+/// [`crate::vulkan::raster::DrawItem::material`]. With the placeholder
+/// white textures these are the effective PBR values. C++ renderer
+/// defaults: metallic 0, roughness 0.5, ao 1, emission 0 (renderer.hpp
+/// `m_defaultMetallic` & friends). Glass drops roughness below 0.35 so
+/// `structural.frag`'s fresnel transparency path engages; steel is
+/// metallic.
+pub fn material_props(material: &str, element_type: ElementType) -> Vec4 {
+    let lower = material.to_lowercase();
+    if lower.contains("glass") || element_type == ElementType::Window {
+        Vec4::new(0.0, 0.1, 1.0, 0.0)
+    } else if lower.contains("steel") || lower.contains("metal") {
+        Vec4::new(0.9, 0.35, 1.0, 0.0)
+    } else if lower.contains("wood") || lower.contains("timber")
+        || element_type == ElementType::Door
+    {
+        Vec4::new(0.0, 0.6, 1.0, 0.0)
+    } else {
+        Vec4::new(0.0, 0.5, 1.0, 0.0)
     }
 }
 
