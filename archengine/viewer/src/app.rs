@@ -22,6 +22,8 @@ use archengine_geometry::domain::StructuralElement;
 
 use crate::camera::Camera;
 use crate::scene;
+use crate::ui::overlay::UiFrame;
+use crate::ui::{FrameStats, UiActions, UiState};
 use crate::vulkan::context::{VulkanConfig, VulkanContext};
 use crate::vulkan::environment::EnvironmentMap;
 use crate::vulkan::raster::{DrawItem, GpuMesh, Renderer};
@@ -48,6 +50,14 @@ struct App {
     pitch: f32,
     cursor_grabbed: bool,
     last_frame: Instant,
+    last_dt: f32,
+    fps_smooth: f32,
+    quit_requested: bool,
+
+    // egui overlay (pure-Rust replacement for the legacy ImGui layer).
+    egui_ctx: egui::Context,
+    egui_state: Option<egui_winit::State>,
+    ui: UiState,
 }
 
 impl Drop for App {
@@ -115,11 +125,36 @@ impl ApplicationHandler for App {
             .set_environment(env.descriptor_info(), use_hdr);
         self.env = Some(env);
 
+        // egui overlay: GPU side (render pass + pipelines) then the
+        // winit-egui bridge (needs the window for scale factor + events).
+        self.renderer
+            .as_mut()
+            .unwrap()
+            .init_ui()
+            .expect("failed to init egui overlay");
+        self.egui_state = Some(egui_winit::State::new(
+            self.egui_ctx.clone(),
+            egui::ViewportId::ROOT,
+            window.as_ref(),
+            Some(window.scale_factor() as f32),
+            None,
+            None,
+        ));
+
         self.window = Some(window);
         self.last_frame = Instant::now();
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        // egui sees every event first; when it consumes one (clicks on
+        // panels, typing in fields) the game camera must not act on it.
+        if let (Some(state), Some(window)) = (&mut self.egui_state, &self.window) {
+            let response = state.on_window_event(window, &event);
+            if response.consumed {
+                return;
+            }
+        }
+
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::KeyboardInput { event, .. } => {
@@ -134,6 +169,14 @@ impl ApplicationHandler for App {
                             }
                             return;
                         }
+                        if code == KeyCode::F1 {
+                            self.ui.visible = !self.ui.visible;
+                            return;
+                        }
+                        // Don't fly the camera while typing in a UI field.
+                        if self.egui_ctx.egui_wants_keyboard_input() {
+                            return;
+                        }
                         self.keys.insert(code);
                     } else {
                         self.keys.remove(&code);
@@ -141,11 +184,14 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::MouseInput { state, button, .. } => {
-                if button == MouseButton::Right {
+                if button == MouseButton::Right && !self.egui_ctx.egui_wants_pointer_input() {
                     self.set_cursor_grab(state == ElementState::Pressed);
                 }
             }
             WindowEvent::MouseWheel { delta, .. } => {
+                if self.egui_ctx.egui_wants_pointer_input() {
+                    return;
+                }
                 let amount = match delta {
                     winit::event::MouseScrollDelta::LineDelta(_, y) => y,
                     winit::event::MouseScrollDelta::PixelDelta(p) => p.y as f32 * 0.1,
@@ -155,6 +201,9 @@ impl ApplicationHandler for App {
             WindowEvent::RedrawRequested => {
                 self.update_camera();
                 self.draw();
+                if self.quit_requested {
+                    event_loop.exit();
+                }
             }
             _ => {}
         }
@@ -205,6 +254,13 @@ impl App {
         let now = Instant::now();
         let dt = (now - self.last_frame).as_secs_f32();
         self.last_frame = now;
+        self.last_dt = dt;
+        let fps = if dt > 0.0 { 1.0 / dt } else { 0.0 };
+        self.fps_smooth = if self.fps_smooth == 0.0 {
+            fps
+        } else {
+            0.9 * self.fps_smooth + 0.1 * fps
+        };
 
         let (sin_yaw, cos_yaw) = self.yaw.sin_cos();
         let (sin_pitch, cos_pitch) = self.pitch.sin_cos();
@@ -231,6 +287,14 @@ impl App {
     }
 
     fn draw(&mut self) {
+        // Build the egui frame (input → panel code → tessellated output).
+        let ui_frame = self.build_ui_frame();
+
+        // Apply settings the raster path consumes.
+        if let Some(renderer) = &mut self.renderer {
+            renderer.set_sky_enabled(self.ui.settings.show_sky);
+        }
+
         let Some(renderer) = &mut self.renderer else {
             return;
         };
@@ -243,8 +307,74 @@ impl App {
                 color: Vec4::new(0.0, 0.0, 0.0, m.stress),
             })
             .collect();
-        if let Err(e) = renderer.draw_frame(&self.camera, &draws) {
+        if let Err(e) = renderer.draw_frame(&self.camera, &draws, ui_frame) {
             tracing::error!("draw_frame failed: {e:#}");
+        }
+    }
+
+    /// Run one egui frame and pack its GPU-ready output. Returns `None`
+    /// when the overlay is hidden or not yet initialized.
+    fn build_ui_frame(&mut self) -> Option<UiFrame> {
+        if !self.ui.visible {
+            return None;
+        }
+        let (state, window) = (self.egui_state.as_mut()?, self.window.as_ref()?.clone());
+
+        let stats = FrameStats {
+            fps: self.fps_smooth,
+            frame_ms: self.last_dt * 1000.0,
+            draw_calls: self.meshes.len() as u32,
+            triangles: self
+                .meshes
+                .iter()
+                .map(|m| m.gpu.index_count / 3)
+                .sum(),
+            camera_pos: self.camera.position,
+            camera_yaw: self.yaw,
+        };
+
+        let egui_ctx = self.egui_ctx.clone();
+        let input = state.take_egui_input(&window);
+        let mut actions = UiActions::default();
+        let full_output = egui_ctx.run_ui(input, |ui| {
+            actions = self.ui.draw(ui, &stats);
+        });
+        state.handle_platform_output(&window, full_output.platform_output);
+
+        self.handle_ui_actions(actions);
+
+        let primitives = egui_ctx.tessellate(full_output.shapes, full_output.pixels_per_point);
+        Some(UiFrame {
+            textures_delta: full_output.textures_delta,
+            primitives,
+            pixels_per_point: full_output.pixels_per_point,
+        })
+    }
+
+    /// Execute the commands the overlay produced this frame.
+    fn handle_ui_actions(&mut self, actions: UiActions) {
+        if actions.toggle_cursor_grab {
+            self.set_cursor_grab(!self.cursor_grabbed);
+        }
+        if actions.quit {
+            self.quit_requested = true;
+        }
+        if let Some(path) = actions.load_env {
+            let Some(ctx) = &self.ctx else { return };
+            match EnvironmentMap::new(ctx)
+                .and_then(|mut env| env.load_from_file(&path).map(|()| env))
+            {
+                Ok(env) => {
+                    if let Some(renderer) = &mut self.renderer {
+                        renderer.set_environment(env.descriptor_info(), true);
+                    }
+                    self.env = Some(env);
+                    tracing::info!(path = %path.display(), "HDRI environment loaded");
+                }
+                Err(e) => {
+                    tracing::error!(path = %path.display(), "failed to load HDRI: {e:#}");
+                }
+            }
         }
     }
 }
@@ -297,6 +427,12 @@ pub fn run_viewer(elements: &[StructuralElement], env_path: Option<PathBuf>) -> 
         pitch,
         cursor_grabbed: false,
         last_frame: Instant::now(),
+        last_dt: 0.0,
+        fps_smooth: 0.0,
+        quit_requested: false,
+        egui_ctx: egui::Context::default(),
+        egui_state: None,
+        ui: UiState::default(),
     };
     let mut state = UploadState {
         pending: Some(primitives),

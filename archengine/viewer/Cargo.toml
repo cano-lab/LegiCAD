@@ -22,7 +22,11 @@ default = ["windowed"]
 # Windowed mode: winit window + swapchain presentation.
 # Headless (compute-only, e.g. batch path-traced renders) builds without winit:
 #   cargo check -p archengine-viewer --no-default-features
-windowed = ["dep:winit", "ash-window", "raw-window-handle"]
+windowed = ["dep:winit", "ash-window", "raw-window-handle", "ui"]
+# egui overlay (pure Rust, replaces the legacy Dear ImGui layer — C++ was
+# imgui_layer.cpp; decision: imgui-rs is Rust API over a C++ core, egui is
+# 100% Rust). Only meaningful with a window + swapchain.
+ui = ["dep:egui", "dep:egui-winit", "dep:egui-ash-renderer"]
 # Intel Open Image Denoise for the path tracer's HDR output (M1 target:
 # `brew install open-image-denoise`, discovered via pkg-config). Without
 # this feature the verbatim 3×3 CPU filter is used instead.
@@ -43,6 +47,9 @@ thiserror.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 oidn = { version = "2", optional = true }
+egui = { version = "0.36", optional = true }
+egui-winit = { version = "0.36", optional = true }
+egui-ash-renderer = { version = "0.13", optional = true }
 
 [build-dependencies]
 shaderc.workspace = true

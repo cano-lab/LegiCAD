@@ -28,11 +28,14 @@
 //!
 //! Re-added from the deferred list (see `questions.md` A4 checklist):
 //! environment-map IBL, Polyhaven texture array, OIDN denoise (cargo
-//! feature `denoise-oidn`). Still pending: ImGui overlay.
+//! feature `denoise-oidn`), and the UI overlay — as pure-Rust egui
+//! (feature `ui`, part of `windowed`) replacing the C++ Dear ImGui layer.
 
 pub mod camera;
 pub mod denoise;
 #[cfg(feature = "windowed")]
 pub mod app;
 pub mod scene;
+#[cfg(feature = "ui")]
+pub mod ui;
 pub mod vulkan;

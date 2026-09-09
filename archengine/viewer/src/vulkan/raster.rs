@@ -23,6 +23,8 @@ use archengine_geometry::mesh_gen::PrimitiveMesh;
 use super::context::VulkanContext;
 use super::environment::EnvironmentMap;
 use super::ubo::SharedUbo;
+#[cfg(feature = "ui")]
+use crate::ui::overlay::UiFrame;
 use crate::camera::Camera;
 
 const SIMPLE_VERT_SPV: &[u8] =
@@ -148,6 +150,13 @@ pub struct Renderer {
     default_cube: EnvironmentMap,
     /// xyz = sun direction (matches `SimpleUbo::light_direction`), w = use HDR cubemap.
     sky_push: Vec4,
+    /// Draw the sky pass (UI: Render Settings → Environment → Draw sky).
+    sky_enabled: bool,
+
+    /// egui overlay (dedicated 1-sample pass over the resolved swapchain
+    /// image — see `ui::overlay`). Created lazily by [`Self::init_ui`].
+    #[cfg(feature = "ui")]
+    ui: Option<crate::ui::overlay::UiOverlay>,
 }
 
 impl Renderer {
@@ -299,6 +308,9 @@ impl Renderer {
             sky_descriptor_sets,
             default_cube,
             sky_push,
+            sky_enabled: true,
+            #[cfg(feature = "ui")]
+            ui: None,
         };
         renderer.create_framebuffers()?;
         Ok(renderer)
@@ -337,6 +349,23 @@ impl Renderer {
                 .image_info(&image_info)];
             unsafe { self.ctx().device().update_descriptor_sets(&write, &[]) };
         }
+    }
+
+    /// Enable/disable the sky pass (UI Render Settings → Draw sky).
+    pub fn set_sky_enabled(&mut self, enabled: bool) {
+        self.sky_enabled = enabled;
+    }
+
+    /// Create the egui overlay: dedicated 1-sample render pass + egui
+    /// renderer. Call once after [`Renderer::new`] when the `ui` feature
+    /// is on. Must be called again only if the context is rebuilt.
+    #[cfg(feature = "ui")]
+    pub fn init_ui(&mut self) -> Result<()> {
+        let in_flight = self.frames.len().max(1);
+        let overlay = crate::ui::overlay::UiOverlay::new(self.ctx(), in_flight)?;
+        self.ui = Some(overlay);
+        tracing::info!("[Renderer] egui overlay initialized");
+        Ok(())
     }
 
     /// Upload a mesh to device-local memory (staging copy, as the C++).
@@ -397,12 +426,35 @@ impl Renderer {
 
     /// Draw one frame. `draws` are rendered front-to-back in order.
     /// Returns `Ok(true)` if the swapchain was recreated (window resized).
-    pub fn draw_frame(&mut self, camera: &Camera, draws: &[DrawItem]) -> Result<bool> {
-        let device = self.ctx().device();
+    pub fn draw_frame(
+        &mut self,
+        camera: &Camera,
+        draws: &[DrawItem],
+        #[cfg(feature = "ui")] ui_frame: Option<UiFrame>,
+    ) -> Result<bool> {
+        let device = self.ctx().device().clone();
         let frame = &self.frames[self.current_frame];
 
         unsafe {
             device.wait_for_fences(&[frame.in_flight], true, u64::MAX)?;
+        }
+
+        // The frame slot's previous work has completed — safe to free egui
+        // textures that aged out of the in-flight window.
+        #[cfg(feature = "ui")]
+        if let Some(overlay) = &mut self.ui {
+            overlay.flush_due_frees();
+        }
+
+        // Raw-pointer read: not tied to a `&self` borrow, so it can coexist
+        // with `&mut self.ui` below (same pattern as environment.rs).
+        #[cfg(feature = "ui")]
+        let ui_ctx: &VulkanContext = unsafe { &*self.ctx };
+
+        // Upload egui textures (font atlas on frame 1) before recording.
+        #[cfg(feature = "ui")]
+        if let (Some(overlay), Some(frame_data)) = (&mut self.ui, &ui_frame) {
+            overlay.set_textures(ui_ctx, &frame_data.textures_delta)?;
         }
 
         let acquire = unsafe {
@@ -510,7 +562,8 @@ impl Renderer {
 
             // Sky first: fullscreen triangle at the far plane, no depth
             // write — the scene draws over it.
-            device.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::GRAPHICS, self.sky_pipeline);
+            if self.sky_enabled {
+                device.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::GRAPHICS, self.sky_pipeline);
             device.cmd_bind_descriptor_sets(
                 cmd,
                 vk::PipelineBindPoint::GRAPHICS,
@@ -528,6 +581,7 @@ impl Renderer {
                 std::slice::from_raw_parts(sun.as_ptr().cast::<u8>(), 16),
             );
             device.cmd_draw(cmd, 3, 1, 0, 0);
+            }
 
             device.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::GRAPHICS, self.pipeline);
             device.cmd_bind_descriptor_sets(
@@ -566,6 +620,21 @@ impl Renderer {
             }
 
             device.cmd_end_render_pass(cmd);
+
+            // UI overlay: separate 1-sample pass over the resolved image.
+            #[cfg(feature = "ui")]
+            if let (Some(overlay), Some(frame_data)) = (&mut self.ui, ui_frame) {
+                overlay.record(
+                    &device,
+                    cmd,
+                    image_index,
+                    extent,
+                    frame_data.pixels_per_point,
+                    &frame_data.primitives,
+                )?;
+                overlay.defer_free(frame_data.textures_delta.free.iter().copied().collect());
+            }
+
             device.end_command_buffer(cmd)?;
         }
 
@@ -610,7 +679,13 @@ impl Renderer {
     /// Recreate swapchain-dependent resources after a resize.
     pub fn recreate(&mut self) -> Result<()> {
         self.ctx_mut().recreate_swapchain()?;
-        self.create_framebuffers()
+        self.create_framebuffers()?;
+        #[cfg(feature = "ui")]
+        if let Some(overlay) = &mut self.ui {
+            let ui_ctx: &VulkanContext = unsafe { &*self.ctx };
+            overlay.recreate_framebuffers(ui_ctx)?;
+        }
+        Ok(())
     }
 
     fn attachment_count(&self) -> usize {
@@ -664,8 +739,17 @@ impl Renderer {
 
 impl Drop for Renderer {
     fn drop(&mut self) {
-        let device = self.ctx().device();
+        let device = self.ctx().device().clone();
         self.ctx().wait_idle();
+        // Overlay render pass + framebuffers first (the egui renderer's own
+        // Drop frees its pipeline/textures when the field drops below).
+        #[cfg(feature = "ui")]
+        {
+            let ui_ctx: &VulkanContext = unsafe { &*self.ctx };
+            if let Some(overlay) = &mut self.ui {
+                overlay.destroy(ui_ctx);
+            }
+        }
         unsafe {
             for frame in &self.frames {
                 device.unmap_memory(frame.ubo_memory);
