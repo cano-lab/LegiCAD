@@ -97,7 +97,15 @@ This code is reference, not current. The new ArchEngine is being built in Rust.
 ## Viewer (Rust Vulkan port)
 
 `archengine/viewer` is the Rust port of the legacy C++ Vulkan kernel
-(`legacy/archengine/ArchEngine_kernel/`). Two binaries:
+(`legacy/archengine/ArchEngine_kernel/`). One-shot build (checks cmake /
+MoltenVK / OIDN, enables `denoise-oidn` when OpenImageDenoise is
+installed, prints run hints):
+
+```bash
+./build.sh            # release; --debug, --test, --clean, --with/--no-oidn
+```
+
+Two binaries:
 
 ```bash
 # Interactive game-style viewer (WASD + right-drag mouse look, Q/E up/down,
