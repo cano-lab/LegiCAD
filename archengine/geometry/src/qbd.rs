@@ -175,16 +175,31 @@ impl QbdBuilding {
             let end_plan = Vec3::from(wall.end);
             let thickness = wall_thickness(&wall.category);
 
+            // Extend the wall geometry half a thickness past each end so
+            // perpendicular walls overlap at corners instead of leaving a
+            // butt-joint notch. Opening offsets shift by the same amount to
+            // stay in place (door/window panel placement below still uses
+            // the logical wall run, which keeps panels aligned with holes).
+            let wall_vec = end_plan - start;
+            let wall_len = wall_vec.xz().length();
+            let (geo_start, geo_end, off_shift) = if wall_len > 0.01 {
+                let d = Vec3::new(wall_vec.x / wall_len, 0.0, wall_vec.z / wall_len);
+                let ext = thickness * 0.5;
+                (start - d * ext, end_plan + d * ext, ext)
+            } else {
+                (start, end_plan, 0.0)
+            };
+
             let mut openings: Vec<[f32; 4]> = Vec::new(); // {offset, width, bottom, height}
             for door in &self.doors {
                 if door.wall_index == wall_idx as i32 {
-                    openings.push([door.offset, door.width, 0.0, door.height]);
+                    openings.push([door.offset + off_shift, door.width, 0.0, door.height]);
                 }
             }
             for window in &self.windows {
                 if window.wall_index == wall_idx as i32 {
                     openings.push([
-                        window.offset,
+                        window.offset + off_shift,
                         window.width,
                         window.sill_height,
                         window.height,
@@ -193,8 +208,8 @@ impl QbdBuilding {
             }
 
             let mut elem = base_element(ElementType::Wall);
-            elem.start = start;
-            elem.end = Vec3::new(end_plan.x, start.y + wall.height, end_plan.z);
+            elem.start = geo_start;
+            elem.end = Vec3::new(geo_end.x, geo_start.y + wall.height, geo_end.z);
             elem.width = thickness;
             elem.depth = thickness;
             elem.material = if !wall.material_override.is_empty() {
@@ -206,8 +221,8 @@ impl QbdBuilding {
             };
 
             let mesh = crate::mesh_gen::csg::wall_with_multiple_openings(
-                start,
-                end_plan,
+                geo_start,
+                geo_end,
                 wall.height,
                 thickness,
                 &openings,
