@@ -100,7 +100,9 @@ FEATURE_ARGS=()
 [ -n "$FEATURES" ] && FEATURE_ARGS+=(--features "$FEATURES")
 
 info "cargo build ($PROFILE) — archrender + archview${FEATURES:+ [$FEATURES]}"
-cargo build "${PROFILE_ARGS[@]}" -p archengine-viewer --bins "${FEATURE_ARGS[@]}"
+# ${arr[@]+"${arr[@]}"} idiom: bash 3.2 (stock macOS) errors on expanding an
+# empty array under set -u.
+cargo build ${PROFILE_ARGS[@]+"${PROFILE_ARGS[@]}"} -p archengine-viewer --bins ${FEATURE_ARGS[@]+"${FEATURE_ARGS[@]}"}
 
 if [ "$RUN_TESTS" = "1" ]; then
     info "cargo test --workspace"
