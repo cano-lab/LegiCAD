@@ -4,3 +4,7 @@ pipeline_cache.bin
 
 # macOS
 .DS_Store
+
+# Downloaded binary assets (re-fetch from polyhaven.com)
+materials/polyhaven/
+hdris/

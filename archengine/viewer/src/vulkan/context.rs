@@ -794,6 +794,13 @@ impl VulkanContext {
                 barrier.dst_access_mask = A::SHADER_READ;
                 (P::COMPUTE_SHADER, P::FRAGMENT_SHADER)
             }
+            // Placeholder shadow map: cleared via transfer, then sampled by
+            // the comparison sampler in the fragment shader.
+            (L::TRANSFER_DST_OPTIMAL, L::DEPTH_STENCIL_READ_ONLY_OPTIMAL) => {
+                barrier.src_access_mask = A::TRANSFER_WRITE;
+                barrier.dst_access_mask = A::SHADER_READ;
+                (P::TRANSFER, P::FRAGMENT_SHADER)
+            }
             _ => bail!("unsupported layout transition: {old_layout:?} -> {new_layout:?}"),
         };
 

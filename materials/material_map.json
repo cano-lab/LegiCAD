@@ -1,0 +1,30 @@
+{
+  "comment": "LegiCAD material map. Texture binaries are NOT in git — fetch with: see materials/polyhaven download URLs from polyhaven.com (1k jpg: diff->albedo, nor_gl->normal, rough->roughness, ao->ao).",
+  "category_defaults": {
+    "Walls_Exterior": "polyhaven/brick_wall_006",
+    "Walls": "polyhaven/plastered_wall_04",
+    "Floors": "polyhaven/concrete_floor_02",
+    "Floors_Wood": "polyhaven/wood_floor",
+    "Roofs": "polyhaven/roof_tiles",
+    "Roofs_Metal": "polyhaven/metal_plate"
+  },
+  "name_overrides": {
+    "brick": "polyhaven/brick_wall_006",
+    "concrete": "polyhaven/concrete_floor_02",
+    "wood": "polyhaven/wood_floor",
+    "drywall": "polyhaven/plastered_wall_04",
+    "plaster": "polyhaven/plastered_wall_04",
+    "steel": "polyhaven/metal_plate",
+    "metal": "polyhaven/metal_plate",
+    "deck": "polyhaven/wood_planks"
+  },
+  "materials": {
+    "polyhaven/brick_wall_006": { "folder": "polyhaven/brick_wall_006" },
+    "polyhaven/plastered_wall_04": { "folder": "polyhaven/plastered_wall_04" },
+    "polyhaven/concrete_floor_02": { "folder": "polyhaven/concrete_floor_02" },
+    "polyhaven/wood_floor": { "folder": "polyhaven/wood_floor" },
+    "polyhaven/roof_tiles": { "folder": "polyhaven/roof_tiles" },
+    "polyhaven/metal_plate": { "folder": "polyhaven/metal_plate" },
+    "polyhaven/wood_planks": { "folder": "polyhaven/wood_planks" }
+  }
+}
