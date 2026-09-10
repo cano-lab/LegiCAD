@@ -1,8 +1,7 @@
-//! Interactive viewer application — winit event loop with game-style
-//! fly camera (WASD + mouse look), driving the raster [`Renderer`].
-//!
-//! Controls: WASD move, Q/E down/up, hold right mouse button for mouse
-//! look, scroll = move speed, Esc releases cursor / closes.
+//! Interactive viewer application — winit event loop with a fly camera
+//! (WASD + Q/E) and orbit-on-click rotation: right-press raycasts the scene
+//! and the hit point becomes the orbit pivot for the drag; scroll dollies
+//! while orbiting, adjusts fly speed otherwise. Esc releases cursor / quits.
 
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -38,6 +37,8 @@ struct SceneMesh {
     /// PBR multipliers (`scene::material_props`): metallic, roughness, ao,
     /// emission.
     material: Vec4,
+    /// CPU-side copy for pivot raycasting (orbit-on-click).
+    cpu: archengine_geometry::mesh_gen::PrimitiveMesh,
 }
 
 /// The renderer holds a raw pointer to the Vulkan context (mirroring the
@@ -60,6 +61,14 @@ struct App {
     last_dt: f32,
     fps_smooth: f32,
     quit_requested: bool,
+
+    // Orbit-on-click: right-press raycasts the scene and the hit point
+    // becomes the pivot the camera orbits while dragging.
+    cursor_pos: (f64, f64),
+    pivot: Option<Vec3>,
+    orbit_distance: f32,
+    scene_center: Vec3,
+    scene_radius: f32,
 
     // egui overlay (pure-Rust replacement for the legacy ImGui layer).
     egui_ctx: egui::Context,
@@ -180,6 +189,10 @@ impl ApplicationHandler for App {
                             self.ui.visible = !self.ui.visible;
                             return;
                         }
+                        if code == KeyCode::KeyF {
+                            self.frame_scene();
+                            return;
+                        }
                         // Don't fly the camera while typing in a UI field.
                         if self.egui_ctx.egui_wants_keyboard_input() {
                             return;
@@ -190,8 +203,21 @@ impl ApplicationHandler for App {
                     }
                 }
             }
+            WindowEvent::CursorMoved { position, .. } => {
+                self.cursor_pos = (position.x, position.y);
+            }
             WindowEvent::MouseInput { state, button, .. } => {
                 if button == MouseButton::Right && !self.egui_ctx.egui_wants_pointer_input() {
+                    if state == ElementState::Pressed {
+                        // Orbit-on-click: the point under the cursor becomes
+                        // the pivot for this drag.
+                        let pivot = self.pick_pivot();
+                        self.orbit_distance =
+                            self.camera.position.distance(pivot).max(0.1);
+                        self.pivot = Some(pivot);
+                    } else {
+                        self.pivot = None;
+                    }
                     self.set_cursor_grab(state == ElementState::Pressed);
                 }
             }
@@ -203,7 +229,18 @@ impl ApplicationHandler for App {
                     winit::event::MouseScrollDelta::LineDelta(_, y) => y,
                     winit::event::MouseScrollDelta::PixelDelta(p) => p.y as f32 * 0.1,
                 };
-                self.camera.speed = (self.camera.speed * (1.0 + amount * 0.1)).clamp(0.5, 200.0);
+                if self.pivot.is_some() {
+                    // While orbiting, scroll dollies toward/away from the pivot.
+                    self.orbit_distance =
+                        (self.orbit_distance * (1.0 - amount * 0.1)).clamp(0.1, 1.0e7);
+                } else {
+                    // Zoom toward the point under the cursor: it stays fixed
+                    // on screen as the camera slides along the pick ray.
+                    let dir = self.cursor_ray();
+                    let target = self.cursor_point(dir);
+                    let factor = (1.0 - amount * 0.15).clamp(0.5, 2.0);
+                    self.camera.position = target + (self.camera.position - target) * factor;
+                }
             }
             WindowEvent::RedrawRequested => {
                 self.update_camera();
@@ -261,6 +298,57 @@ impl App {
         self.cursor_grabbed = grabbed;
     }
 
+    /// Ray from the camera through the cursor, in world space (view-space
+    /// construction avoids projection Y-flip conventions).
+    fn cursor_ray(&self) -> Vec3 {
+        let Some(window) = &self.window else {
+            return self.scene_center - self.camera.position;
+        };
+        let size = window.inner_size();
+        let (w, h) = (size.width.max(1) as f32, size.height.max(1) as f32);
+        let (cx, cy) = (self.cursor_pos.0 as f32, self.cursor_pos.1 as f32);
+
+        let (sin_yaw, cos_yaw) = self.yaw.sin_cos();
+        let (sin_pitch, cos_pitch) = self.pitch.sin_cos();
+        let forward = Vec3::new(cos_yaw * cos_pitch, sin_pitch, sin_yaw * cos_pitch);
+        let right = forward.cross(Vec3::Y).normalize_or_zero();
+        let up = right.cross(forward);
+
+        let ndc_x = 2.0 * cx / w - 1.0;
+        let ndc_y = 1.0 - 2.0 * cy / h;
+        let tan_half = (self.camera.fov.to_radians() * 0.5).tan();
+        (forward + right * (ndc_x * tan_half * w / h) + up * (ndc_y * tan_half))
+            .normalize_or_zero()
+    }
+
+    /// Point under the cursor: nearest triangle hit, or a point at the
+    /// scene-centre distance along the ray when nothing is hit.
+    fn cursor_point(&self, dir: Vec3) -> Vec3 {
+        match raycast_meshes(&self.meshes, self.camera.position, dir) {
+            Some(t) => self.camera.position + dir * t,
+            None => {
+                let fallback = self.camera.position.distance(self.scene_center).max(1.0);
+                self.camera.position + dir * fallback
+            }
+        }
+    }
+
+    /// World-space point under the cursor, for orbit-on-click.
+    fn pick_pivot(&self) -> Vec3 {
+        self.cursor_point(self.cursor_ray())
+    }
+
+    /// Reset the camera to frame the whole scene (F key) — the recovery
+    /// move when you've zoomed or flown off into empty space.
+    fn frame_scene(&mut self) {
+        let radius = self.scene_radius;
+        self.camera.position = self.scene_center + Vec3::new(radius, radius * 0.5, radius);
+        self.camera.target = self.scene_center;
+        let d = (self.camera.target - self.camera.position).normalize();
+        self.yaw = d.z.atan2(d.x);
+        self.pitch = d.y.asin();
+    }
+
     fn update_camera(&mut self) {
         let now = Instant::now();
         let dt = (now - self.last_frame).as_secs_f32();
@@ -291,10 +379,23 @@ impl App {
                 movement += dir;
             }
         }
-        if movement != Vec3::ZERO {
-            self.camera.position += movement.normalize() * self.camera.speed * dt;
+        let delta = if movement != Vec3::ZERO {
+            movement.normalize() * self.camera.speed * dt
+        } else {
+            Vec3::ZERO
+        };
+
+        if let Some(pivot) = self.pivot {
+            // Orbit mode: WASD pans the pivot (camera follows), mouse drag
+            // rotates around it at the captured distance.
+            let pivot = pivot + delta;
+            self.pivot = Some(pivot);
+            self.camera.position = pivot - forward * self.orbit_distance;
+            self.camera.target = pivot;
+        } else {
+            self.camera.position += delta;
+            self.camera.target = self.camera.position + forward;
         }
-        self.camera.target = self.camera.position + forward;
     }
 
     fn draw(&mut self) {
@@ -455,6 +556,11 @@ pub fn run_viewer(elements: &[StructuralElement], env_path: Option<PathBuf>) -> 
         last_dt: 0.0,
         fps_smooth: 0.0,
         quit_requested: false,
+        cursor_pos: (0.0, 0.0),
+        pivot: None,
+        orbit_distance: 0.0,
+        scene_center: center,
+        scene_radius: radius,
         egui_ctx: egui::Context::default(),
         egui_state: None,
         ui: UiState::default(),
@@ -473,6 +579,43 @@ pub fn run_viewer(elements: &[StructuralElement], env_path: Option<PathBuf>) -> 
     // On macOS, winit recommends exiting the process after the loop ends
     // rather than returning to a caller that might create a new loop.
     Ok(())
+}
+
+/// Möller–Trumbore ray intersection over the CPU-side scene meshes.
+/// Returns the nearest hit distance along `dir` (must be normalised).
+fn raycast_meshes(meshes: &[SceneMesh], origin: Vec3, dir: Vec3) -> Option<f32> {
+    let mut best = f32::MAX;
+    for mesh in meshes {
+        let verts = &mesh.cpu.vertices;
+        for tri in mesh.cpu.indices.chunks_exact(3) {
+            let p0 = verts[tri[0] as usize].position;
+            let p1 = verts[tri[1] as usize].position;
+            let p2 = verts[tri[2] as usize].position;
+            let e1 = p1 - p0;
+            let e2 = p2 - p0;
+            let p = dir.cross(e2);
+            let det = e1.dot(p);
+            if det.abs() < 1e-8 {
+                continue; // ray parallel to triangle
+            }
+            let inv = 1.0 / det;
+            let tvec = origin - p0;
+            let u = tvec.dot(p) * inv;
+            if !(0.0..=1.0).contains(&u) {
+                continue;
+            }
+            let q = tvec.cross(e1);
+            let v = dir.dot(q) * inv;
+            if v < 0.0 || u + v > 1.0 {
+                continue;
+            }
+            let t = e2.dot(q) * inv;
+            if t > 0.0 && t < best {
+                best = t;
+            }
+        }
+    }
+    (best < f32::MAX).then_some(best)
 }
 
 /// Pending scene geometry: mesh + stress + push-constant colour/material.
@@ -506,6 +649,7 @@ impl ApplicationHandler for AppRunner<'_> {
                         stress,
                         color,
                         material,
+                        cpu: mesh,
                     }),
                     Err(e) => {
                         tracing::warn!("mesh upload failed: {e:#}");

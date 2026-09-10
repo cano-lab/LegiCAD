@@ -194,10 +194,11 @@ impl UiState {
                 ui.heading("Controls");
                 ui.separator();
                 for (key, what) in [
-                    ("W A S D", "Move"),
+                    ("W A S D", "Move (pan while orbiting)"),
                     ("Q / E", "Down / Up"),
-                    ("Right mouse drag", "Look"),
-                    ("Scroll", "Move speed"),
+                    ("Right mouse drag", "Orbit around clicked point"),
+                    ("Scroll", "Zoom to cursor"),
+                    ("F", "Frame scene (zoom to fit)"),
                     ("F1", "Toggle overlay"),
                     ("Esc", "Release cursor / quit"),
                 ] {
