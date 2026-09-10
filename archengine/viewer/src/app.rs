@@ -432,6 +432,10 @@ pub fn run_viewer(elements: &[StructuralElement], env_path: Option<PathBuf>) -> 
     camera.position = center + Vec3::new(radius, radius * 0.5, radius);
     camera.target = center;
     camera.far_plane = (radius * 20.0).max(1000.0);
+    // Scale the near plane with the scene: mm-scale scenes (radius ~10⁴)
+    // with the 0.1 default push depth precision past the 24-bit buffer and
+    // coplanar-ish surfaces (wall faces, door panels) z-fight into sawteeth.
+    camera.near_plane = (radius * 0.01).max(0.05);
     let d = (camera.target - camera.position).normalize();
     let (yaw, pitch) = (d.z.atan2(d.x), d.y.asin());
 
