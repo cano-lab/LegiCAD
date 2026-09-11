@@ -9,6 +9,7 @@ members = [
     "regime/obc",
     "regime/zoning",
     "regime/params",
+    "regime/bridge",
 ]
 resolver = "3"
 

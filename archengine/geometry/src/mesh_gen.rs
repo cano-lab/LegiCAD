@@ -16,9 +16,90 @@
 use crate::domain::{StressColors, Vertex};
 use glam::{Vec2, Vec3};
 
+/// Extrude a 2D polygon footprint into a 3D prism mesh.
+/// 
+/// This is the key function for converting massing envelopes from regime-params
+/// into renderable geometry. The footprint is in XZ plane, extruded along +Y.
+#[must_use]
+pub fn create_extruded_polygon(footprint: &[Vec2], height: f32, color: Vec3) -> PrimitiveMesh {
+    let mut mesh = PrimitiveMesh::default();
+    
+    if footprint.len() < 3 {
+        return mesh;
+    }
+    
+    // Create bottom and top vertices
+    let mut bottom_verts = Vec::with_capacity(footprint.len());
+    let mut top_verts = Vec::with_capacity(footprint.len());
+    
+    for &pt in footprint {
+        bottom_verts.push(Vec3::new(pt.x, 0.0, pt.y));
+        top_verts.push(Vec3::new(pt.x, height, pt.y));
+    }
+    
+    // Generate cap normals (up/down)
+    let up_normal = Vec3::Y;
+    let down_normal = -Vec3::Y;
+    
+    // Top cap (CCW when viewed from above)
+    let base = mesh.vertices.len() as u32;
+    for &vert in top_verts.iter() {
+        let uv = Vec2::new(vert.x * 0.1, vert.z * 0.1);
+        mesh.vertices.push(v(vert, up_normal, color, uv));
+    }
+    // Triangulate top cap (fan from first vertex)
+    for i in 1..top_verts.len() - 1 {
+        mesh.indices.extend_from_slice(&[base, base + i as u32, base + (i + 1) as u32]);
+    }
+    
+    // Bottom cap (CW when viewed from below)
+    let base = mesh.vertices.len() as u32;
+    for &vert in bottom_verts.iter().rev() {
+        let uv = Vec2::new(vert.x * 0.1, vert.z * 0.1);
+        mesh.vertices.push(v(vert, down_normal, color, uv));
+    }
+    // Triangulate bottom cap
+    let bottom_base = base;
+    let n = bottom_verts.len();
+    for i in 1..n - 1 {
+        mesh.indices.extend_from_slice(&[bottom_base, bottom_base + (n - 1 - i) as u32, bottom_base + (n - i) as u32]);
+    }
+    
+    // Side walls
+    for i in 0..footprint.len() {
+        let j = (i + 1) % footprint.len();
+        let p0_bottom = bottom_verts[i];
+        let p1_bottom = bottom_verts[j];
+        let p0_top = top_verts[i];
+        let p1_top = top_verts[j];
+        
+        // Compute outward normal for this edge
+        let edge = Vec3::new(p1_bottom.x - p0_bottom.x, 0.0, p1_bottom.z - p0_bottom.z);
+        let side_normal = Vec3::new(-edge.z, 0.0, edge.x).normalize();
+        
+        let base = mesh.vertices.len() as u32;
+        
+        // Add four corners of the quad
+        for (pt, normal) in [
+            (p0_bottom, side_normal),
+            (p1_bottom, side_normal),
+            (p1_top, side_normal),
+            (p0_top, side_normal),
+        ] {
+            let uv = Vec2::new(pt.x * 0.1, pt.y * 0.1);
+            mesh.vertices.push(v(pt, normal, color, uv));
+        }
+        
+        // Add two triangles for the quad
+        mesh.indices.extend_from_slice(&[base, base + 1, base + 2, base, base + 2, base + 3]);
+    }
+    
+    mesh
+}
+
 /// Vertices + indices produced by a generator (the C++ returns
 /// `std::pair<std::vector<Vertex>, std::vector<u32>>`).
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct PrimitiveMesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
@@ -1116,5 +1197,68 @@ mod tests {
             GREY,
         );
         assert_eq!(m.vertices.len(), 24); // single solid box
+    }
+
+    #[test]
+    fn extruded_polygon_square_prism() {
+        // Square footprint 10x10, height 5
+        let footprint = vec![
+            Vec2::new(0.0, 0.0),
+            Vec2::new(10.0, 0.0),
+            Vec2::new(10.0, 10.0),
+            Vec2::new(0.0, 10.0),
+        ];
+        let mesh = create_extruded_polygon(&footprint, 5.0, GREY);
+        
+        assert!(!mesh.is_empty());
+        // Top cap: 4 verts, bottom cap: 4 verts, 4 walls × 4 verts = 24 total
+        assert_eq!(mesh.vertices.len(), 24);
+        // Top cap: 2 tris (6 indices), bottom cap: 2 tris (6 indices), 4 walls × 2 tris (24 indices) = 36
+        assert_eq!(mesh.indices.len(), 36);
+        
+        // Verify heights
+        let max_y = mesh.vertices.iter().map(|v| v.position.y).fold(f32::NEG_INFINITY, f32::max);
+        let min_y = mesh.vertices.iter().map(|v| v.position.y).fold(f32::INFINITY, f32::min);
+        assert!((max_y - 5.0).abs() < 1e-6);
+        assert!((min_y - 0.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn extruded_polygon_triangle_prism() {
+        // Triangle footprint, height 3
+        let footprint = vec![
+            Vec2::new(0.0, 0.0),
+            Vec2::new(5.0, 0.0),
+            Vec2::new(2.5, 4.0),
+        ];
+        let mesh = create_extruded_polygon(&footprint, 3.0, GREY);
+        
+        assert!(!mesh.is_empty());
+        // Top: 3 verts, bottom: 3 verts, 3 walls × 4 verts = 18 total
+        assert_eq!(mesh.vertices.len(), 18);
+        // Top: 1 tri (3 idx), bottom: 1 tri (3 idx), 3 walls × 2 tris (18 idx) = 24
+        assert_eq!(mesh.indices.len(), 24);
+    }
+
+    #[test]
+    fn extruded_polygon_invalid_footprint() {
+        // Less than 3 vertices should return empty mesh
+        let footprint = vec![Vec2::new(0.0, 0.0), Vec2::new(5.0, 0.0)];
+        let mesh = create_extruded_polygon(&footprint, 3.0, GREY);
+        
+        assert!(mesh.is_empty());
+    }
+
+    #[test]
+    fn extruded_polygon_normals_are_unit() {
+        let footprint = vec![
+            Vec2::new(0.0, 0.0),
+            Vec2::new(10.0, 0.0),
+            Vec2::new(10.0, 10.0),
+            Vec2::new(0.0, 10.0),
+        ];
+        let mesh = create_extruded_polygon(&footprint, 5.0, GREY);
+        
+        assert!(normals_are_unit(&mesh));
     }
 }

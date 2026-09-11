@@ -14,6 +14,7 @@
 pub mod arch;
 pub mod bvh;
 pub mod domain;
+pub mod massing_bridge;
 pub mod mesh;
 pub mod mesh_gen;
 pub mod object;

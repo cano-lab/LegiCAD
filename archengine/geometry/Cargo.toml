@@ -13,6 +13,8 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
+regime-params = { path = "../../regime/params" }
+regime-zoning = { path = "../../regime/zoning" }
 
 [dev-dependencies]
 serde_json.workspace = true
