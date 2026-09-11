@@ -1,3 +1,5 @@
+#![recursion_limit = "256"] // the json! bundle literals in emit.rs are huge
+
 //! Room-layout solver — the live `qbd_layout_generator` path, ported lean.
 //!
 //! Replaces a ~4,000-LOC Python live path (and skips ~5,300 LOC of dead

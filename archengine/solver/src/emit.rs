@@ -126,20 +126,14 @@ pub fn building_json_from_manifest(manifest: &crate::ProgramManifest) -> Value {
 /// Perimeter (exterior) + interior partition walls. On the ground floor, an
 /// entry door sits on whichever exterior edge the `entry` room touches
 /// (preferring the south/front wall); upper floors have no exterior door (the
-/// stair is their access). Each interior wall gets a centred door.
+/// stair is their access). Interior doors are placed by the circulation
+/// graph: rooms are nodes, shared walls are candidate edges, and doors go on
+/// the maximum-weight spanning tree of that graph (see `door_weight`), so
+/// every room is reachable and no adjacency gets a door "just because".
 fn generate_walls(rooms: &[PlacedRoom], env: Rect, is_ground: bool) -> Vec<Wall> {
     let (x0, y0, x1, y1) = (env.x, env.y, env.x + env.w, env.y + env.h);
     let half = DOOR_WIDTH_FT * 0.5;
     let mut walls = Vec::new();
-
-    // On a dedicated bedroom floor, only door rooms that should connect (so the
-    // hall reaches every bedroom and we don't door bedroom-to-bedroom or
-    // closet-to-hall). The main floor keeps a door on every shared wall.
-    let bed_floor = rooms.iter().any(|r| r.room_type.contains("bedroom"))
-        && rooms.iter().any(|r| r.room_type == "hallway")
-        && !rooms
-            .iter()
-            .any(|r| matches!(r.room_type.as_str(), "entry" | "living" | "kitchen" | "great_room"));
 
     // Exterior perimeter, CCW from south-west: indices 0=south, 1=east,
     // 2=north, 3=west.
@@ -207,10 +201,13 @@ fn generate_walls(rooms: &[PlacedRoom], env: Rect, is_ground: bool) -> Vec<Wall>
     }
 
     // Interior partitions: for each adjacent room pair, the shared boundary.
+    // Doors are NOT decided here — each wall becomes a candidate edge in the
+    // circulation graph, and the spanning tree below picks the actual doors.
+    let mut candidates: Vec<(usize, usize, usize, i32)> = Vec::new(); // (wall_idx, room_a, room_b, weight)
     for i in 0..rooms.len() {
         for j in (i + 1)..rooms.len() {
             if let Some((s, e)) = shared_edge(&rooms[i].rect, &rooms[j].rect) {
-                let mut wall = Wall {
+                let wall = Wall {
                     start: s,
                     end: e,
                     category: "interior",
@@ -218,31 +215,26 @@ fn generate_walls(rooms: &[PlacedRoom], env: Rect, is_ground: bool) -> Vec<Wall>
                     room2: rooms[j].id.clone(),
                     openings: Vec::new(),
                 };
-                // Centred door if the shared edge is wide enough — and, on a
-                // bedroom floor, only between rooms that should connect. The
-                // garage reaches the house through a single service/entry door,
-                // never straight into the living/kitchen.
                 let len = ((e.0 - s.0).powi(2) + (e.1 - s.1).powi(2)).sqrt();
-                let (ta, tb) = (&rooms[i].room_type, &rooms[j].room_type);
-                let wants_door = if ta == "garage" || tb == "garage" {
-                    false // garage doors are added in a post-pass: exactly one
-                } else if bed_floor {
-                    door_between(ta, tb)
-                } else {
-                    true
-                };
-                if wants_door && len > DOOR_WIDTH_FT + 1.0 {
-                    let t0 = (len * 0.5 - half) / len;
-                    let t1 = (len * 0.5 + half) / len;
-                    let lerp = |t: f32| (s.0 + (e.0 - s.0) * t, s.1 + (e.1 - s.1) * t);
-                    wall.openings.push(Opening {
-                        start: lerp(t0),
-                        end: lerp(t1),
-                    });
+                let weight = door_weight(&rooms[i].room_type, &rooms[j].room_type);
+                if weight > 0 && len > DOOR_WIDTH_FT + 1.0 {
+                    candidates.push((walls.len(), i, j, weight));
                 }
                 walls.push(wall);
             }
         }
+    }
+
+    // Doors = maximum-weight spanning tree of the adjacency graph: every room
+    // connected, strongest connections first (hallway reaches bedrooms,
+    // closets open to their host, open-plan public rooms, ...).
+    for wall_idx in select_door_edges(rooms.len(), &candidates) {
+        let (s, e) = (walls[wall_idx].start, walls[wall_idx].end);
+        let len = ((e.0 - s.0).powi(2) + (e.1 - s.1).powi(2)).sqrt();
+        let t0 = (len * 0.5 - half) / len;
+        let t1 = (len * 0.5 + half) / len;
+        let lerp = |t: f32| (s.0 + (e.0 - s.0) * t, s.1 + (e.1 - s.1) * t);
+        walls[wall_idx].openings.push(Opening { start: lerp(t0), end: lerp(t1) });
     }
 
     // Garage → house: exactly one pedestrian door, on the widest interior wall
@@ -287,35 +279,97 @@ fn generate_walls(rooms: &[PlacedRoom], env: Rect, is_ground: bool) -> Vec<Wall>
     walls
 }
 
-/// Whether two rooms on a bedroom floor should share a door. Circulation
-/// (hall/stairs) reaches habitable rooms but not closets or the ensuite; a
-/// closet opens to its bedroom (or the bath it sits behind); the ensuite opens
-/// to the bedroom. Bedrooms never door to each other.
-fn door_between(a: &str, b: &str) -> bool {
+/// Edge weight for a potential door between two rooms (0 = never). The
+/// circulation graph's spanning tree maximises total weight, so strong
+/// connections win: circulation rooms (hall/entry/stairs) reach habitable
+/// rooms, closets open only to their host bedroom, the ensuite opens to the
+/// primary bedroom, open-plan public rooms interconnect, and bad links
+/// (bedroom↔bedroom, bath↔bath) are last resorts.
+fn door_weight(a: &str, b: &str) -> i32 {
     fn circ(t: &str) -> bool {
         matches!(t, "hallway" | "corridor" | "stairs" | "entry" | "foyer" | "mudroom" | "landing")
     }
     let closet = |t: &str| t.contains("closet");
     let bedroom = |t: &str| t.contains("bedroom");
-    let connect = |a: &str, b: &str| -> bool {
-        if a == "stairs" {
-            return matches!(b, "hallway" | "corridor" | "landing" | "foyer"); // stairs reach the hall/corridor
+    let bath = |t: &str| t.contains("bath");
+    let public = |t: &str| matches!(t, "kitchen" | "living" | "dining" | "great_room" | "family");
+
+    // The garage reaches the house through the dedicated post-pass door,
+    // never through the graph.
+    if a == "garage" || b == "garage" {
+        return 0;
+    }
+    if closet(a) && closet(b) {
+        return 0;
+    }
+    if closet(a) {
+        return if bedroom(b) { 90 } else { 5 };
+    }
+    if closet(b) {
+        return if bedroom(a) { 90 } else { 5 };
+    }
+    // Ensuite → its bedroom.
+    if (a == "primary_bath" && bedroom(b)) || (b == "primary_bath" && bedroom(a)) {
+        return 90;
+    }
+    // Open-plan public rooms.
+    if public(a) && public(b) {
+        return 80;
+    }
+    // Circulation reaches habitable rooms; a shared bath doors off the hall,
+    // the ensuite does not. Stairs/elevators door to rooms only as a last
+    // resort — they should land on the circulation spine (95 above).
+    if circ(a) || circ(b) {
+        let other = if circ(a) { b } else { a };
+        let via_shaft = a == "stairs" || b == "stairs" || a == "elevator" || b == "elevator";
+        if via_shaft {
+            return if circ(other) { 95 } else { 60 };
         }
-        if circ(a) {
-            return !closet(b) && b != "primary_bath"; // hall/corridor → bedroom/bath/stair
+        if other == "primary_bath" {
+            return 20;
         }
-        if closet(a) {
-            return bedroom(b); // a closet opens only to its bedroom, never the
-                               // bath it backs onto
+        return if other == "laundry" { 70 } else { 85 };
+    }
+    if bedroom(a) && bedroom(b) {
+        return 5;
+    }
+    if bath(a) && bath(b) {
+        return 5;
+    }
+    if (bath(a) && bedroom(b)) || (bath(b) && bedroom(a)) {
+        return 15; // non-ensuite bath into a bedroom: last resort
+    }
+    40
+}
+
+/// Maximum-weight spanning tree over the room adjacency graph (Kruskal):
+/// returns the wall indices that get doors. Rooms are nodes, shared walls
+/// are candidate edges; the result connects every room with the strongest
+/// available connections, so door count is rooms-1 per floor when the plan
+/// is contiguous.
+fn select_door_edges(n_rooms: usize, candidates: &[(usize, usize, usize, i32)]) -> Vec<usize> {
+    fn find(parent: &mut [usize], mut x: usize) -> usize {
+        while parent[x] != x {
+            parent[x] = parent[parent[x]]; // path halving
+            x = parent[x];
         }
-        if a == "primary_bath" {
-            return bedroom(b); // ensuite → the bedroom
+        x
+    }
+
+    let mut parent: Vec<usize> = (0..n_rooms).collect();
+    let mut sorted: Vec<_> = candidates.to_vec();
+    // Weight descending; wall index ascending for determinism on ties.
+    sorted.sort_by(|a, b| b.3.cmp(&a.3).then(a.0.cmp(&b.0)));
+
+    let mut chosen = Vec::new();
+    for (wall_idx, i, j, _) in sorted {
+        let (ri, rj) = (find(&mut parent, i), find(&mut parent, j));
+        if ri != rj {
+            parent[ri] = rj;
+            chosen.push(wall_idx);
         }
-        // A shared bathroom opens off the hall (handled by the circ branch),
-        // never directly into a bedroom.
-        false
-    };
-    connect(a, b) || connect(b, a)
+    }
+    chosen
 }
 
 /// The shared boundary segment between two axis-aligned rects, if they abut
@@ -911,6 +965,8 @@ fn to_json(answers: &Answers, env: Rect, floors: &[Floor]) -> Value {
     let stairs_json = generate_stairs(floors, ff_mm, &answers.stair_config, &move |_| mode);
 
     let circulation_graph = build_circulation_graph(floors);
+    let floors_json = floors_batch_json(env, floors.len());
+    let roofs_json_v = roofs_json(env, floors.len());
 
     let total_walls: usize = floors.iter().map(|f| f.walls.len()).sum();
     let total_windows: usize = floors.iter().map(|f| f.windows.len()).sum();
@@ -934,6 +990,8 @@ fn to_json(answers: &Answers, env: Rect, floors: &[Floor]) -> Value {
         "unit": "mm",
         "creative_mode": false,
         "walls_batch": walls_batch,
+        "floors_batch": floors_json,
+        "roofs": roofs_json_v,
         "doors": doors,
         "windows": windows_json,
         "egress_warnings": egress_warnings,
@@ -1121,6 +1179,8 @@ fn to_json_manifest(
     let stairs_json = generate_stairs(floors, floor_to_floor_mm, stair_config, &|_| stair_mode);
 
     let circulation_graph = build_circulation_graph(floors);
+    let floors_json = floors_batch_json(env, floors.len());
+    let roofs_json_v = roofs_json(env, floors.len());
 
     let total_walls: usize = floors.iter().map(|f| f.walls.len()).sum();
     let total_windows: usize = floors.iter().map(|f| f.windows.len()).sum();
@@ -1142,6 +1202,8 @@ fn to_json_manifest(
         "unit": "mm",
         "creative_mode": false,
         "walls_batch": walls_batch,
+        "floors_batch": floors_json,
+        "roofs": roofs_json_v,
         "doors": doors,
         "windows": windows_json,
         "egress_warnings": [],
@@ -1191,8 +1253,67 @@ fn to_json_manifest(
     })
 }
 
-fn doors_count(walls: &[Wall]) -> usize {
-    walls.iter().map(|w| w.openings.len()).sum()
+/// Floor slabs, one per storey: a 300 mm structural slab whose top surface
+/// is the level's finished-floor elevation (ground slab = concrete).
+fn floors_batch_json(env: Rect, storeys: usize) -> Vec<Value> {
+    let s = FEET_TO_MM;
+    (0..storeys)
+        .map(|i| {
+            let elev = i as f32 * FLOOR_TO_FLOOR_FT * s;
+            json!({
+                "start": [0.0, elev - 300.0, 0.0],
+                "end": [env.w * s, elev, env.h * s],
+                "thickness": 300.0,
+                "material": if i == 0 { "concrete" } else { "wood" },
+            })
+        })
+        .collect()
+}
+
+/// Gable roof over the footprint: two sloped planes from the top plate of
+/// the top storey to a centred ridge, 6:12 pitch, 300 mm overhang, plus the
+/// two gable-end infill triangles (wall material, so the attic is closed).
+/// The ridge runs along the longer axis. (Hip is approximated as gable for
+/// now.)
+fn roofs_json(env: Rect, storeys: usize) -> Vec<Value> {
+    let s = FEET_TO_MM;
+    let (wx, dz) = (env.w * s, env.h * s);
+    let eave = ((storeys - 1) as f32 * FLOOR_TO_FLOOR_FT + WALL_HEIGHT_FT) * s;
+    let oh = 300.0;
+    let (x0, z0, x1, z1) = (-oh, -oh, wx + oh, dz + oh);
+
+    let (slopes, gables) = if wx >= dz {
+        let ridge_z = dz / 2.0;
+        let ry = eave + (dz / 2.0 + oh) * 0.5;
+        let slopes = vec![
+            json!({"vertices": [[x1, eave, z0], [x0, eave, z0], [x0, ry, ridge_z], [x1, ry, ridge_z]]}),
+            json!({"vertices": [[x0, eave, z1], [x1, eave, z1], [x1, ry, ridge_z], [x0, ry, ridge_z]]}),
+        ];
+        let gables = vec![
+            json!({"vertices": [[0.0, eave, 0.0], [0.0, eave, dz], [0.0, ry, ridge_z]]}),
+            json!({"vertices": [[wx, eave, dz], [wx, eave, 0.0], [wx, ry, ridge_z]]}),
+        ];
+        (slopes, gables)
+    } else {
+        let ridge_x = wx / 2.0;
+        let ry = eave + (wx / 2.0 + oh) * 0.5;
+        let slopes = vec![
+            json!({"vertices": [[x0, eave, z1], [x0, eave, z0], [ridge_x, ry, z0], [ridge_x, ry, z1]]}),
+            json!({"vertices": [[x1, eave, z0], [x1, eave, z1], [ridge_x, ry, z1], [ridge_x, ry, z0]]}),
+        ];
+        let gables = vec![
+            json!({"vertices": [[0.0, eave, 0.0], [wx, eave, 0.0], [ridge_x, ry, 0.0]]}),
+            json!({"vertices": [[wx, eave, dz], [0.0, eave, dz], [ridge_x, ry, dz]]}),
+        ];
+        (slopes, gables)
+    };
+    vec![
+        json!({ "material": "roof_shingle", "surfaces": slopes }),
+        json!({ "material": "wall_gable", "surfaces": gables }),
+    ]
+}
+
+fn doors_count(walls: &[Wall]) -> usize {    walls.iter().map(|w| w.openings.len()).sum()
 }
 
 /// Build a minimal circulation graph from the placed rooms. Nodes are placed at
@@ -1200,6 +1321,10 @@ fn doors_count(walls: &[Wall]) -> usize {
 /// same stair/elevator shaft across consecutive floors. This is the seed of the
 /// path-of-travel graph — future work will add door nodes and wall-following
 /// corridor centerlines.
+/// The circulation graph that drove door placement: every room is a node,
+/// every interior wall carrying a door is an edge, plus vertical shaft edges
+/// for stairs/elevators. This is the graph the spanning tree in
+/// `generate_walls` connected — consumers can rely on reachability.
 fn build_circulation_graph(floors: &[Floor]) -> Value {
     let s = FEET_TO_MM;
     let mut nodes: Vec<Value> = Vec::new();
@@ -1212,32 +1337,30 @@ fn build_circulation_graph(floors: &[Floor]) -> Value {
         for room in &floor.rooms {
             let cx = (room.rect.x + room.rect.w * 0.5) * s;
             let cy = (room.rect.y + room.rect.h * 0.5) * s;
-            let sanitized_id = room.id.replace(' ', "_");
-            let node_id = format!("{}_{}", sanitized_id, floor.level);
-            match room.room_type.as_str() {
-                "stairs" | "elevator" => {
-                    nodes.push(json!({
-                        "id": node_id.clone(),
-                        "kind": room.room_type,
-                        "level": level_name,
-                        "x": cx,
-                        "y": cy,
-                    }));
-                    shaft_nodes
-                        .entry(room.id.clone())
-                        .or_default()
-                        .push((node_id, floor.level));
-                }
-                "corridor" | "hallway" => {
-                    nodes.push(json!({
-                        "id": node_id.clone(),
-                        "kind": "corridor",
-                        "level": level_name,
-                        "x": cx,
-                        "y": cy,
-                    }));
-                }
-                _ => {}
+            let node_id = format!("{}_{}", room.id.replace(' ', "_"), floor.level);
+            if matches!(room.room_type.as_str(), "stairs" | "elevator") {
+                shaft_nodes
+                    .entry(room.id.clone())
+                    .or_default()
+                    .push((node_id.clone(), floor.level));
+            }
+            nodes.push(json!({
+                "id": node_id,
+                "kind": room.room_type,
+                "level": level_name,
+                "x": cx,
+                "y": cy,
+            }));
+        }
+
+        // Door edges: interior walls that actually carry a door opening.
+        for wall in &floor.walls {
+            if wall.category == "interior" && !wall.openings.is_empty() {
+                edges.push(json!({
+                    "from": format!("{}_{}", wall.room1.replace(' ', "_"), floor.level),
+                    "to": format!("{}_{}", wall.room2.replace(' ', "_"), floor.level),
+                    "kind": "door",
+                }));
             }
         }
     }

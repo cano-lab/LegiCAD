@@ -1,14 +1,171 @@
 {
   "building_id": "ea4af85d",
   "circulation_graph": {
-    "edges": [],
+    "edges": [
+      {
+        "from": "entry_1",
+        "kind": "door",
+        "to": "living_1"
+      },
+      {
+        "from": "living_1",
+        "kind": "door",
+        "to": "dining_1"
+      },
+      {
+        "from": "living_1",
+        "kind": "door",
+        "to": "bathroom_2_1"
+      },
+      {
+        "from": "living_1",
+        "kind": "door",
+        "to": "closet_3_1"
+      },
+      {
+        "from": "dining_1",
+        "kind": "door",
+        "to": "kitchen_1"
+      },
+      {
+        "from": "kitchen_1",
+        "kind": "door",
+        "to": "hallway_1"
+      },
+      {
+        "from": "laundry_1",
+        "kind": "door",
+        "to": "hallway_1"
+      },
+      {
+        "from": "laundry_1",
+        "kind": "door",
+        "to": "primary_bath_1"
+      },
+      {
+        "from": "bedroom_2_1",
+        "kind": "door",
+        "to": "closet_2_1"
+      },
+      {
+        "from": "bedroom_2_1",
+        "kind": "door",
+        "to": "bedroom_3_1"
+      },
+      {
+        "from": "bedroom_3_1",
+        "kind": "door",
+        "to": "closet_3_1"
+      },
+      {
+        "from": "primary_bedroom_1",
+        "kind": "door",
+        "to": "primary_bath_1"
+      },
+      {
+        "from": "primary_bedroom_1",
+        "kind": "door",
+        "to": "primary_closet_1"
+      }
+    ],
     "nodes": [
       {
+        "id": "entry_1",
+        "kind": "entry",
+        "level": "Level 1",
+        "x": 338.6666564941406,
+        "y": 2939.142578125
+      },
+      {
+        "id": "living_1",
+        "kind": "living",
+        "level": "Level 1",
+        "x": 3725.333251953125,
+        "y": 2939.142578125
+      },
+      {
+        "id": "dining_1",
+        "kind": "dining",
+        "level": "Level 1",
+        "x": 8128.0,
+        "y": 2939.142578125
+      },
+      {
+        "id": "kitchen_1",
+        "kind": "kitchen",
+        "level": "Level 1",
+        "x": 12361.3330078125,
+        "y": 1728.907470703125
+      },
+      {
+        "id": "laundry_1",
+        "kind": "laundry",
+        "level": "Level 1",
+        "x": 10305.142578125,
+        "y": 4668.05029296875
+      },
+      {
         "id": "hallway_1",
-        "kind": "corridor",
+        "kind": "hallway",
         "level": "Level 1",
         "x": 13183.80859375,
         "y": 4668.05029296875
+      },
+      {
+        "id": "bedroom_2_1",
+        "kind": "bedroom",
+        "level": "Level 1",
+        "x": 2344.614990234375,
+        "y": 9062.35546875
+      },
+      {
+        "id": "closet_2_1",
+        "kind": "closet",
+        "level": "Level 1",
+        "x": 2344.614990234375,
+        "y": 6939.6416015625
+      },
+      {
+        "id": "bathroom_2_1",
+        "kind": "bathroom",
+        "level": "Level 1",
+        "x": 2344.614990234375,
+        "y": 6302.82763671875
+      },
+      {
+        "id": "bedroom_3_1",
+        "kind": "bedroom",
+        "level": "Level 1",
+        "x": 6643.07568359375,
+        "y": 8680.2685546875
+      },
+      {
+        "id": "closet_3_1",
+        "kind": "closet",
+        "level": "Level 1",
+        "x": 6643.07568359375,
+        "y": 6133.0107421875
+      },
+      {
+        "id": "primary_bedroom_1",
+        "kind": "primary_bedroom",
+        "level": "Level 1",
+        "x": 11918.4599609375,
+        "y": 9174.736328125
+      },
+      {
+        "id": "primary_bath_1",
+        "kind": "primary_bath",
+        "level": "Level 1",
+        "x": 10589.8447265625,
+        "y": 6627.478515625
+      },
+      {
+        "id": "primary_closet_1",
+        "kind": "walk_in_closet",
+        "level": "Level 1",
+        "x": 13911.3837890625,
+        "y": 6627.478515625
       }
     ]
   },
@@ -139,33 +296,6 @@
     },
     {
       "height": 2033.0159912109375,
-      "offset": 1210.2347412109375,
-      "type": "door",
-      "wall_index": 10,
-      "width": 914.399658203125,
-      "x": 9482.6669921875,
-      "y": 4668.0498046875
-    },
-    {
-      "height": 2033.0159912109375,
-      "offset": 911.7943115234375,
-      "type": "door",
-      "wall_index": 11,
-      "width": 914.3999633789062,
-      "x": 7685.1279296875,
-      "y": 5878.28515625
-    },
-    {
-      "height": 2033.0159912109375,
-      "offset": 822.4759521484375,
-      "type": "door",
-      "wall_index": 13,
-      "width": 914.3999633789062,
-      "x": 10305.142578125,
-      "y": 3457.81494140625
-    },
-    {
-      "height": 2033.0159912109375,
       "offset": 2056.189453125,
       "type": "door",
       "wall_index": 14,
@@ -193,24 +323,6 @@
     },
     {
       "height": 2033.0159912109375,
-      "offset": 727.5753173828125,
-      "type": "door",
-      "wall_index": 17,
-      "width": 914.3999633789062,
-      "x": 11855.1943359375,
-      "y": 5878.28515625
-    },
-    {
-      "height": 2033.0159912109375,
-      "offset": 1328.6153564453125,
-      "type": "door",
-      "wall_index": 18,
-      "width": 914.3999633789062,
-      "x": 13911.3837890625,
-      "y": 5878.28515625
-    },
-    {
-      "height": 2033.0159912109375,
       "offset": 2344.614990234375,
       "type": "door",
       "wall_index": 19,
@@ -229,30 +341,12 @@
     },
     {
       "height": 2033.0159912109375,
-      "offset": 2344.614990234375,
-      "type": "door",
-      "wall_index": 21,
-      "width": 914.3999633789062,
-      "x": 2344.614990234375,
-      "y": 6727.37060546875
-    },
-    {
-      "height": 2033.0159912109375,
       "offset": 1953.8458251953125,
       "type": "door",
       "wall_index": 25,
       "width": 914.3999633789062,
       "x": 6643.07568359375,
       "y": 6387.73681640625
-    },
-    {
-      "height": 2033.0159912109375,
-      "offset": 1798.06396484375,
-      "type": "door",
-      "wall_index": 26,
-      "width": 914.3999633789062,
-      "x": 8596.921875,
-      "y": 9174.736328125
     },
     {
       "height": 2033.0159912109375,
@@ -271,15 +365,6 @@
       "width": 914.3999633789062,
       "x": 13911.3837890625,
       "y": 7376.671875
-    },
-    {
-      "height": 2033.0159912109375,
-      "offset": 749.1937866210938,
-      "type": "door",
-      "wall_index": 31,
-      "width": 914.3999633789062,
-      "x": 12582.7685546875,
-      "y": 6627.47900390625
     }
   ],
   "egress_warnings": [],
@@ -519,7 +604,7 @@
       "level_name": "Level 1",
       "room": "laundry",
       "type": "switch",
-      "x": 9482.6669921875,
+      "x": 11127.619140625,
       "y": 5277.64990234375
     },
     {
@@ -883,8 +968,8 @@
       "level_name": "Level 1",
       "room": "primary_bedroom",
       "type": "switch",
-      "x": 8596.921875,
-      "y": 9784.3359375
+      "x": 11199.4453125,
+      "y": 7376.671875
     },
     {
       "level_name": "Level 1",
@@ -996,7 +1081,7 @@
       "room": "primary_closet",
       "type": "switch",
       "x": 14520.984375,
-      "y": 5878.28515625
+      "y": 7376.671875
     },
     {
       "level_name": "Level 1",
@@ -1025,6 +1110,22 @@
       "type": "receptacle",
       "x": 15239.9990234375,
       "y": 6627.47900390625
+    }
+  ],
+  "floors_batch": [
+    {
+      "end": [
+        15239.9990234375,
+        0.0,
+        10972.7998046875
+      ],
+      "material": "concrete",
+      "start": [
+        0.0,
+        -300.0,
+        0.0
+      ],
+      "thickness": 300.0
     }
   ],
   "headers": [
@@ -1087,33 +1188,6 @@
       "needs_review": false,
       "opening": "door",
       "size": "2-2x4",
-      "width": 914.399658203125,
-      "x": 9482.6669921875,
-      "y": 4668.0498046875
-    },
-    {
-      "level_name": "Level 1",
-      "needs_review": false,
-      "opening": "door",
-      "size": "2-2x4",
-      "width": 914.3999633789062,
-      "x": 7685.1279296875,
-      "y": 5878.28515625
-    },
-    {
-      "level_name": "Level 1",
-      "needs_review": false,
-      "opening": "door",
-      "size": "2-2x4",
-      "width": 914.3999633789062,
-      "x": 10305.142578125,
-      "y": 3457.81494140625
-    },
-    {
-      "level_name": "Level 1",
-      "needs_review": false,
-      "opening": "door",
-      "size": "2-2x4",
       "width": 914.3999633789062,
       "x": 13183.80859375,
       "y": 3457.81494140625
@@ -1142,24 +1216,6 @@
       "opening": "door",
       "size": "2-2x4",
       "width": 914.3999633789062,
-      "x": 11855.1943359375,
-      "y": 5878.28515625
-    },
-    {
-      "level_name": "Level 1",
-      "needs_review": false,
-      "opening": "door",
-      "size": "2-2x4",
-      "width": 914.3999633789062,
-      "x": 13911.3837890625,
-      "y": 5878.28515625
-    },
-    {
-      "level_name": "Level 1",
-      "needs_review": false,
-      "opening": "door",
-      "size": "2-2x4",
-      "width": 914.3999633789062,
       "x": 2344.614990234375,
       "y": 7151.9130859375
     },
@@ -1178,26 +1234,8 @@
       "opening": "door",
       "size": "2-2x4",
       "width": 914.3999633789062,
-      "x": 2344.614990234375,
-      "y": 6727.37060546875
-    },
-    {
-      "level_name": "Level 1",
-      "needs_review": false,
-      "opening": "door",
-      "size": "2-2x4",
-      "width": 914.3999633789062,
       "x": 6643.07568359375,
       "y": 6387.73681640625
-    },
-    {
-      "level_name": "Level 1",
-      "needs_review": false,
-      "opening": "door",
-      "size": "2-2x4",
-      "width": 914.3999633789062,
-      "x": 8596.921875,
-      "y": 9174.736328125
     },
     {
       "level_name": "Level 1",
@@ -1216,15 +1254,6 @@
       "width": 914.3999633789062,
       "x": 13911.3837890625,
       "y": 7376.671875
-    },
-    {
-      "level_name": "Level 1",
-      "needs_review": false,
-      "opening": "door",
-      "size": "2-2x4",
-      "width": 914.3999633789062,
-      "x": 12582.7685546875,
-      "y": 6627.47900390625
     },
     {
       "level_name": "Level 1",
@@ -1315,6 +1344,104 @@
     "sqft": 1800
   },
   "roof_type": "gable",
+  "roofs": [
+    {
+      "material": "roof_shingle",
+      "surfaces": [
+        {
+          "vertices": [
+            [
+              15539.9990234375,
+              2743.199951171875,
+              -300.0
+            ],
+            [
+              -300.0,
+              2743.199951171875,
+              -300.0
+            ],
+            [
+              -300.0,
+              5636.39990234375,
+              5486.39990234375
+            ],
+            [
+              15539.9990234375,
+              5636.39990234375,
+              5486.39990234375
+            ]
+          ]
+        },
+        {
+          "vertices": [
+            [
+              -300.0,
+              2743.199951171875,
+              11272.7998046875
+            ],
+            [
+              15539.9990234375,
+              2743.199951171875,
+              11272.7998046875
+            ],
+            [
+              15539.9990234375,
+              5636.39990234375,
+              5486.39990234375
+            ],
+            [
+              -300.0,
+              5636.39990234375,
+              5486.39990234375
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "material": "wall_gable",
+      "surfaces": [
+        {
+          "vertices": [
+            [
+              0.0,
+              2743.199951171875,
+              0.0
+            ],
+            [
+              0.0,
+              2743.199951171875,
+              10972.7998046875
+            ],
+            [
+              0.0,
+              5636.39990234375,
+              5486.39990234375
+            ]
+          ]
+        },
+        {
+          "vertices": [
+            [
+              15239.9990234375,
+              2743.199951171875,
+              10972.7998046875
+            ],
+            [
+              15239.9990234375,
+              2743.199951171875,
+              0.0
+            ],
+            [
+              15239.9990234375,
+              5636.39990234375,
+              5486.39990234375
+            ]
+          ]
+        }
+      ]
+    }
+  ],
   "rooms": {
     "bathroom_2": {
       "area": 3981557.5,
@@ -1582,11 +1709,11 @@
   "success": true,
   "summary": {
     "detectors": 4,
-    "doors": 22,
+    "doors": 14,
     "egress_violations": 0,
     "electrical": 106,
     "exterior_walls": 4,
-    "headers": 29,
+    "headers": 21,
     "headers_need_review": 1,
     "interior_walls": 28,
     "rooms_placed": 14,
