@@ -1,14 +1,14 @@
 [package]
-name = "regime-params"
+name = "regime-bridge"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "Regime engine — site, program brief, and question-answer input schemas"
+description = "Bridge between regime massing options and archengine geometry kernel"
 
 [dependencies]
 glam.workspace = true
-serde.workspace = true
-serde_json.workspace = true
+archengine-geometry = { path = "../../archengine/geometry" }
+regime-params = { path = "../params" }
 regime-zoning = { path = "../zoning" }

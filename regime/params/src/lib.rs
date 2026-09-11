@@ -10,6 +10,10 @@
 //! Schemas follow `START_HERE.md` Phase 1/2 (site boundary + zoning rules +
 //! program brief). Everything is plain data — no logic beyond validation.
 
+pub mod massing;
+
+pub use massing::{MassingOption, MassingSolver, solve_massing};
+
 use glam::Vec2;
 use serde::{Deserialize, Serialize};
 

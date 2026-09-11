@@ -1,10 +1,45 @@
-# Rust
+```
+# Rust/Cargo specific
 target/
-pipeline_cache.bin
+Cargo.lock
+**/*.rs.bk
+**/*.rlib
 
-# macOS
+# Dependencies
+**/node_modules/
+**/.venv/
+**/venv/
+**/__pycache__/
+**/.mypy_cache/
+**/.pytest_cache/
+**/.gradle/
+
+# Build artifacts
+**/dist/
+**/build/
+**/target/
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# System
 .DS_Store
-
-# Downloaded binary assets (re-fetch from polyhaven.com)
-materials/polyhaven/
-hdris/
+Thumbs.db
+```
