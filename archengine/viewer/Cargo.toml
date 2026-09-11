@@ -17,6 +17,11 @@ name = "archview"
 path = "src/bin/archview.rs"
 required-features = ["windowed"]
 
+[[bin]]
+name = "archview-massing"
+path = "src/bin/archview_massing.rs"
+required-features = ["windowed"]
+
 [features]
 default = ["windowed"]
 # Windowed mode: winit window + swapchain presentation.
@@ -34,6 +39,8 @@ denoise-oidn = ["dep:oidn"]
 
 [dependencies]
 archengine-geometry = { path = "../geometry" }
+regime-params = { path = "../../regime/params" }
+regime-zoning = { path = "../../regime/zoning" }
 ash.workspace = true
 ash-window = { workspace = true, optional = true }
 raw-window-handle = { workspace = true, optional = true }
