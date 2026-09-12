@@ -957,7 +957,7 @@ fn create_instance(
         if extension_names.iter().any(|e| e == "VK_KHR_portability_enumeration") {
             extensions.push(c"VK_KHR_portability_enumeration".as_ptr());
         }
-        if extension_names.iter().any(|e| e == ash::khr::get_physical_device_properties2::NAME) {
+        if extension_names.iter().any(|e| e == "VK_KHR_get_physical_device_properties2") {
             extensions.push(ash::khr::get_physical_device_properties2::NAME.as_ptr());
         }
     }
