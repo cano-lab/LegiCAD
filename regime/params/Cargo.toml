@@ -12,3 +12,7 @@ glam.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 regime-zoning = { path = "../zoning" }
+
+[[bin]]
+name = "massing_cli"
+path = "src/bin/massing_cli.rs"
