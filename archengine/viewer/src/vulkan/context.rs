@@ -135,7 +135,19 @@ impl VulkanContext {
         window_size: impl Fn() -> (u32, u32) + Send + 'static,
         config: VulkanConfig,
     ) -> Result<Self> {
-        let entry = unsafe { Entry::load() }.context("failed to load Vulkan loader")?;
+        let entry = unsafe {
+            #[cfg(target_os = "macos")]
+            {
+                // On macOS, explicitly load MoltenVK since it's not in the standard search path
+                Entry::from_static_loading(ash::Loading::Dynamic)
+                    .or_else(|_| Entry::load())
+                    .context("failed to load Vulkan loader (MoltenVK)")?
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                Entry::load().context("failed to load Vulkan loader")?
+            }
+        };
         let extensions = ash_window::enumerate_required_extensions(display_handle)
             .context("enumerate required instance extensions")?
             .to_vec();
@@ -162,7 +174,19 @@ impl VulkanContext {
     pub fn new_headless(mut config: VulkanConfig) -> Result<Self> {
         config.headless = true;
         config.enable_msaa = false;
-        let entry = unsafe { Entry::load() }.context("failed to load Vulkan loader")?;
+        let entry = unsafe {
+            #[cfg(target_os = "macos")]
+            {
+                // On macOS, explicitly load MoltenVK since it's not in the standard search path
+                Entry::from_static_loading(ash::Loading::Dynamic)
+                    .or_else(|_| Entry::load())
+                    .context("failed to load Vulkan loader (MoltenVK)")?
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                Entry::load().context("failed to load Vulkan loader")?
+            }
+        };
         // Headless: no window/surface extensions.
         let instance = create_instance(&entry, &config, Vec::new())?;
         let debug_utils = setup_debug_messenger(&entry, &instance, &config)?;
