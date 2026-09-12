@@ -139,7 +139,7 @@ impl VulkanContext {
             #[cfg(target_os = "macos")]
             {
                 // On macOS, explicitly load MoltenVK since it's not in the standard search path
-                Entry::from_static_loading(ash::Loading::Dynamic)
+                Entry::load_from("libMoltenVK.dylib")
                     .or_else(|_| Entry::load())
                     .context("failed to load Vulkan loader (MoltenVK)")?
             }
@@ -178,7 +178,7 @@ impl VulkanContext {
             #[cfg(target_os = "macos")]
             {
                 // On macOS, explicitly load MoltenVK since it's not in the standard search path
-                Entry::from_static_loading(ash::Loading::Dynamic)
+                Entry::load_from("libMoltenVK.dylib")
                     .or_else(|_| Entry::load())
                     .context("failed to load Vulkan loader (MoltenVK)")?
             }
