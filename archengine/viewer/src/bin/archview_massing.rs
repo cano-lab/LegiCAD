@@ -17,6 +17,7 @@
 use std::path::PathBuf;
 use anyhow::{Context, Result};
 use glam::{Vec2, Vec3};
+use archengine_geometry::domain::MeshData;
 
 #[derive(Default)]
 struct Args {
@@ -210,7 +211,7 @@ fn main() -> Result<()> {
             };
             
             // Attach the generated mesh as custom mesh data
-            elem.mesh = mass.mesh.clone();
+            elem.mesh = MeshData::from(mass.mesh.clone());
             
             Some(elem)
         })
@@ -224,7 +225,7 @@ fn main() -> Result<()> {
         // Offset each option along X axis for comparison
         let offset = glam::Vec3::new(idx as f32 * offset_spacing, 0.0, 0.0);
         for vert in elem.mesh.vertices.iter_mut() {
-            vert.position += offset;
+            *vert += offset;
         }
         positioned_elements.push(elem);
     }

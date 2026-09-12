@@ -7,6 +7,8 @@
 use glam::{Vec2, Vec3};
 use serde::{Deserialize, Serialize};
 
+use crate::mesh_gen::PrimitiveMesh;
+
 /// CPU vertex. The renderer crate keeps a GPU-flavored equivalent with
 /// Vulkan/wgpu attribute bindings; these two are kept in sync but live in
 /// different crates per the port plan §4.
@@ -45,6 +47,15 @@ impl MeshData {
     #[must_use]
     pub fn has_data(&self) -> bool {
         !self.vertices.is_empty() && !self.faces.is_empty()
+    }
+}
+
+impl From<PrimitiveMesh> for MeshData {
+    fn from(mesh: PrimitiveMesh) -> Self {
+        MeshData {
+            vertices: mesh.vertices.iter().map(|v| v.position).collect(),
+            faces: mesh.indices.chunks(3).map(|chunk| [chunk[0], chunk[1], chunk[2]]).collect(),
+        }
     }
 }
 
