@@ -943,10 +943,23 @@ fn create_instance(
     // MoltenVK is a portability driver: the Vulkan loader hides portability
     // ICDs unless the instance opts in via ENUMERATE_PORTABILITY_KHR +
     // VK_KHR_portability_enumeration (required on macOS).
+    // Only add these extensions if they're actually available.
     #[cfg(target_os = "macos")]
     {
-        extensions.push(c"VK_KHR_portability_enumeration".as_ptr());
-        extensions.push(ash::khr::get_physical_device_properties2::NAME.as_ptr());
+        let available_extensions = unsafe { entry.enumerate_instance_extension_properties(None) }?;
+        let extension_names: Vec<String> = available_extensions
+            .iter()
+            .map(|p| unsafe { CStr::from_ptr(p.extension_name.as_ptr()) }
+                .to_string_lossy()
+                .to_string())
+            .collect();
+
+        if extension_names.iter().any(|e| e == "VK_KHR_portability_enumeration") {
+            extensions.push(c"VK_KHR_portability_enumeration".as_ptr());
+        }
+        if extension_names.iter().any(|e| e == ash::khr::get_physical_device_properties2::NAME) {
+            extensions.push(ash::khr::get_physical_device_properties2::NAME.as_ptr());
+        }
     }
 
     let layers: Vec<*const i8> = if enable_validation {
