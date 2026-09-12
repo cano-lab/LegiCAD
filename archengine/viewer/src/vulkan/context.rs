@@ -138,8 +138,9 @@ impl VulkanContext {
         let entry = unsafe {
             #[cfg(target_os = "macos")]
             {
-                // On macOS, explicitly load MoltenVK since it's not in the standard search path
-                Entry::load_from("libMoltenVK.dylib")
+                // On macOS, explicitly load MoltenVK from framework location
+                Entry::load_from("/Library/Frameworks/MoltenVK.framework/Versions/A/MoltenVK")
+                    .or_else(|_| Entry::load_from("/usr/local/lib/libMoltenVK.dylib"))
                     .or_else(|_| Entry::load())
                     .context("failed to load Vulkan loader (MoltenVK)")?
             }
@@ -177,8 +178,9 @@ impl VulkanContext {
         let entry = unsafe {
             #[cfg(target_os = "macos")]
             {
-                // On macOS, explicitly load MoltenVK since it's not in the standard search path
-                Entry::load_from("libMoltenVK.dylib")
+                // On macOS, explicitly load MoltenVK from framework location
+                Entry::load_from("/Library/Frameworks/MoltenVK.framework/Versions/A/MoltenVK")
+                    .or_else(|_| Entry::load_from("/usr/local/lib/libMoltenVK.dylib"))
                     .or_else(|_| Entry::load())
                     .context("failed to load Vulkan loader (MoltenVK)")?
             }
