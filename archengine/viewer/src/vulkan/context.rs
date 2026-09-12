@@ -926,7 +926,17 @@ fn create_instance(
         .engine_version(vk::make_api_version(0, 1, 0, 0))
         .api_version(vk::API_VERSION_1_2);
 
-    if config.enable_validation {
+    // Check if validation layer is available before enabling it
+    let available_layers = unsafe { entry.enumerate_instance_layer_properties() }?;
+    let validation_available = available_layers.iter().any(|p| {
+        unsafe { CStr::from_ptr(p.layer_name.as_ptr()) }
+            .to_string_lossy()
+            .contains("VK_LAYER_KHRONOS_validation")
+    });
+
+    let enable_validation = config.enable_validation && validation_available;
+
+    if enable_validation {
         extensions.push(ash::ext::debug_utils::NAME.as_ptr());
     }
 
@@ -939,7 +949,7 @@ fn create_instance(
         extensions.push(ash::khr::get_physical_device_properties2::NAME.as_ptr());
     }
 
-    let layers: Vec<*const i8> = if config.enable_validation {
+    let layers: Vec<*const i8> = if enable_validation {
         vec![c"VK_LAYER_KHRONOS_validation".as_ptr()]
     } else {
         Vec::new()
