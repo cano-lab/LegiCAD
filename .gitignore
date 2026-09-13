@@ -1,2 +1,27 @@
-# Terrain assets - keeping these in version control as they appear to be configuration/data files
-# No additional ignores needed for the listed terrain JSON and README files
+```
+# Compiled and build artifacts
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.out
+
+# Dependencies
+target/
+**/target/
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Editors
+.vscode/
+.idea/
+
+# Rust-specific
+Cargo.lock
+**/Cargo.lock
+```

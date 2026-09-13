@@ -22,6 +22,8 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use glam::{Vec2, Vec3};
 use archengine_geometry::domain::MeshData;
+use archengine_geometry::mesh::Vertex;
+use legsite::MeshVertex as SiteMeshVertex;
 
 /// Simple terrain JSON format for quick site topography
 #[derive(serde::Deserialize, Debug)]
@@ -44,7 +46,7 @@ fn load_terrain(terrain_path: &PathBuf, lot_bounds: (Vec2, Vec2)) -> Result<Opti
     match extension.to_lowercase().as_str() {
         "tif" | "tiff" => {
             // Load GeoTIFF DEM using legsite
-            let raster = ls_site::read_elevation(terrain_path)
+            let raster = legsite::read_elevation(terrain_path)
                 .with_context(|| format!("Failed to read GeoTIFF: {}", terrain_path.display()))?;
             
             // Extract terrain mesh for the lot bounds
@@ -364,10 +366,10 @@ fn main() -> Result<()> {
             let z = row as f32 * z_step;
             let y = elev - base_z; // Relative elevation
             
-            terrain_mesh.vertices.push(archengine_geometry::mesh_gen::MeshVertex {
+            terrain_mesh.vertices.push(Vertex {
                 position: Vec3::new(x, y, z),
                 normal: Vec3::Y,
-                tangent: Vec3::X,
+                color: Vec3::new(0.5, 0.4, 0.3), // Brownish terrain color
                 uv: Vec2::new(col as f32 / terrain.grid_width as f32, row as f32 / terrain.grid_depth as f32),
             });
         }
