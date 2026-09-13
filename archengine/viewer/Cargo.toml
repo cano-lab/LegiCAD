@@ -41,6 +41,7 @@ denoise-oidn = ["dep:oidn"]
 archengine-geometry = { path = "../geometry" }
 regime-params = { path = "../../regime/params" }
 regime-zoning = { path = "../../regime/zoning" }
+legsite = { path = "../../legacy/legible-studio/crates/site", package = "ls-site" }
 ash.workspace = true
 ash-window = { workspace = true, optional = true }
 raw-window-handle = { workspace = true, optional = true }
@@ -57,6 +58,7 @@ oidn = { version = "2", optional = true }
 egui = { version = "0.36", optional = true }
 egui-winit = { version = "0.36", optional = true }
 egui-ash-renderer = { version = "0.13", optional = true }
+tiff = "0.9"
 
 [build-dependencies]
 shaderc.workspace = true
