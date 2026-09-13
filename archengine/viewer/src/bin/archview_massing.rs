@@ -21,9 +21,7 @@
 use std::path::PathBuf;
 use anyhow::{Context, Result};
 use glam::{Vec2, Vec3};
-use archengine_geometry::domain::MeshData;
-use archengine_geometry::mesh::Vertex;
-use legsite::MeshVertex as SiteMeshVertex;
+use archengine_geometry::domain::{MeshData, Vertex};
 
 /// Simple terrain JSON format for quick site topography
 #[derive(serde::Deserialize, Debug)]
@@ -46,7 +44,7 @@ fn load_terrain(terrain_path: &PathBuf, lot_bounds: (Vec2, Vec2)) -> Result<Opti
     match extension.to_lowercase().as_str() {
         "tif" | "tiff" => {
             // Load GeoTIFF DEM using legsite
-            let raster = legsite::read_elevation(terrain_path)
+            let _raster = legsite::read_elevation(terrain_path)
                 .with_context(|| format!("Failed to read GeoTIFF: {}", terrain_path.display()))?;
             
             // Extract terrain mesh for the lot bounds
@@ -54,10 +52,6 @@ fn load_terrain(terrain_path: &PathBuf, lot_bounds: (Vec2, Vec2)) -> Result<Opti
             let (min_bound, max_bound) = lot_bounds;
             let lot_width = max_bound.x - min_bound.x;
             let lot_depth = max_bound.y - min_bound.y;
-            
-            // Sample elevation at lot center as reference
-            let center_x = (min_bound.x + max_bound.x) / 2.0;
-            let center_y = (min_bound.y + max_bound.y) / 2.0;
             
             // TODO: Proper UTM projection for GeoTIFF sampling
             // For now, return basic terrain info
@@ -77,12 +71,13 @@ fn load_terrain(terrain_path: &PathBuf, lot_bounds: (Vec2, Vec2)) -> Result<Opti
             let simple: SimpleTerrain = serde_json::from_str(&text)
                 .with_context(|| format!("parsing terrain JSON from {}", terrain_path.display()))?;
             
+            let elevations = simple.elevations.clone();
             Ok(Some(TerrainData {
                 width_m: simple.width_m,
                 depth_m: simple.depth_m,
                 grid_width: simple.grid_width,
                 grid_depth: simple.grid_depth,
-                elevations: simple.elevations,
+                elevations,
                 base_elevation: simple.elevations.iter().cloned().fold(f32::INFINITY, f32::min),
             }))
         }
@@ -370,7 +365,8 @@ fn main() -> Result<()> {
                 position: Vec3::new(x, y, z),
                 normal: Vec3::Y,
                 color: Vec3::new(0.5, 0.4, 0.3), // Brownish terrain color
-                uv: Vec2::new(col as f32 / terrain.grid_width as f32, row as f32 / terrain.grid_depth as f32),
+                tex_coord: Vec2::new(col as f32 / terrain.grid_width as f32, row as f32 / terrain.grid_depth as f32),
+                stress: 0.0,
             });
         }
         
