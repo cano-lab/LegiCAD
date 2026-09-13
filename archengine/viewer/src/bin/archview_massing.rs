@@ -210,8 +210,8 @@ fn main() -> Result<()> {
     let args = parse_args()?;
     
     // Build site from args or load from file
-    let site = if let Some(site_path) = args.site {
-        let text = std::fs::read_to_string(&site_path)
+    let site = if let Some(ref site_path) = args.site {
+        let text = std::fs::read_to_string(site_path)
             .with_context(|| format!("reading {}", site_path.display()))?;
         serde_json::from_str(&text)
             .with_context(|| format!("parsing site JSON from {}", site_path.display()))?
