@@ -936,7 +936,19 @@ fn create_instance(
 
     let enable_validation = config.enable_validation && validation_available;
 
-    if enable_validation {
+    // Check if debug utils extension is available before enabling it
+    let available_extensions = unsafe { entry.enumerate_instance_extension_properties(None) }?;
+    let extension_names: Vec<String> = available_extensions
+        .iter()
+        .map(|p| unsafe { CStr::from_ptr(p.extension_name.as_ptr()) }
+            .to_string_lossy()
+            .to_string())
+        .collect();
+
+    let debug_utils_available = extension_names.iter().any(|e| e == "VK_EXT_debug_utils");
+    let enable_debug_utils = enable_validation && debug_utils_available;
+
+    if enable_debug_utils {
         extensions.push(ash::ext::debug_utils::NAME.as_ptr());
     }
 
@@ -946,14 +958,6 @@ fn create_instance(
     // Only add these extensions if they're actually available.
     #[cfg(target_os = "macos")]
     {
-        let available_extensions = unsafe { entry.enumerate_instance_extension_properties(None) }?;
-        let extension_names: Vec<String> = available_extensions
-            .iter()
-            .map(|p| unsafe { CStr::from_ptr(p.extension_name.as_ptr()) }
-                .to_string_lossy()
-                .to_string())
-            .collect();
-
         if extension_names.iter().any(|e| e == "VK_KHR_portability_enumeration") {
             extensions.push(c"VK_KHR_portability_enumeration".as_ptr());
         }
@@ -987,6 +991,21 @@ fn setup_debug_messenger(
     if !config.enable_validation {
         return Ok(None);
     }
+    
+    // Check if VK_EXT_debug_utils was enabled in the instance by checking available instance extensions
+    let available_extensions = unsafe { entry.enumerate_instance_extension_properties(None) }?;
+    let extension_names: Vec<String> = available_extensions
+        .iter()
+        .map(|p| unsafe { CStr::from_ptr(p.extension_name.as_ptr()) }
+            .to_string_lossy()
+            .to_string())
+        .collect();
+    
+    if !extension_names.iter().any(|e| e == "VK_EXT_debug_utils") {
+        tracing::warn!("VK_EXT_debug_utils not available, debug messenger disabled");
+        return Ok(None);
+    }
+    
     let create_info = vk::DebugUtilsMessengerCreateInfoEXT::default()
         .message_severity(
             vk::DebugUtilsMessageSeverityFlagsEXT::WARNING
