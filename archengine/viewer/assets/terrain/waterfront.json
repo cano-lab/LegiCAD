@@ -1,0 +1,18 @@
+{
+  "name": "Waterfront Slope",
+  "description": "Gradual slope down to water level, typical of lakefront or riverfront properties",
+  "grid": {
+    "width": 50.0,
+    "depth": 50.0,
+    "resolution": 10,
+    "base_elevation": 0.0
+  },
+  "elevations": [
+    [8.0, 8.0, 8.0, 8.0, 8.0, 8.0],
+    [7.0, 7.0, 7.0, 7.0, 7.0, 7.0],
+    [6.0, 6.0, 6.0, 6.0, 6.0, 6.0],
+    [4.0, 4.0, 4.0, 4.0, 4.0, 4.0],
+    [2.0, 2.0, 2.0, 2.0, 2.0, 2.0],
+    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  ]
+}
