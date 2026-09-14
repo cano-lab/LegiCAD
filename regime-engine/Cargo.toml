@@ -1,0 +1,12 @@
+[package]
+name = "regime-engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Regime Engine: Generative constraints for zoning and building codes"
+
+[dependencies]
+glam.workspace = true
+serde.workspace = true
