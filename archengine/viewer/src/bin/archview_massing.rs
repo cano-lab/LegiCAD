@@ -314,6 +314,42 @@ fn main() -> Result<()> {
         .map(|opt| archengine_geometry::massing_bridge::massing_to_building_mass(opt, None))
         .collect();
     
+    // Helper function to sample terrain height at a given (x, z) position
+    let sample_terrain_height = |x: f32, z: f32| -> f32 {
+        if let Some(terrain) = &terrain_data {
+            let x_step = terrain.width_m / (terrain.grid_width as f32);
+            let z_step = terrain.depth_m / (terrain.grid_depth as f32);
+            
+            // Calculate grid coordinates
+            let col = (x / x_step).clamp(0.0, (terrain.grid_width - 1) as f32);
+            let row = (z / z_step).clamp(0.0, (terrain.grid_depth - 1) as f32);
+            
+            // Get integer and fractional parts for bilinear interpolation
+            let col0 = col.floor() as usize;
+            let row0 = row.floor() as usize;
+            let col1 = (col0 + 1).min(terrain.grid_width - 1);
+            let row1 = (row0 + 1).min(terrain.grid_depth - 1);
+            
+            let frac_x = col - col0 as f32;
+            let frac_z = row - row0 as f32;
+            
+            // Sample four corners
+            let h00 = terrain.elevations[row0 * terrain.grid_width + col0];
+            let h01 = terrain.elevations[row0 * terrain.grid_width + col1];
+            let h10 = terrain.elevations[row1 * terrain.grid_width + col0];
+            let h11 = terrain.elevations[row1 * terrain.grid_width + col1];
+            
+            // Bilinear interpolation
+            let h_top = h00 * (1.0 - frac_x) + h01 * frac_x;
+            let h_bottom = h10 * (1.0 - frac_x) + h11 * frac_x;
+            let h = h_top * (1.0 - frac_z) + h_bottom * frac_z;
+            
+            h - terrain.base_elevation
+        } else {
+            0.0
+        }
+    };
+    
     // Convert to StructuralElements for the viewer
     let mut elements: Vec<archengine_geometry::domain::StructuralElement> = building_masses
         .iter()
@@ -332,8 +368,15 @@ fn main() -> Result<()> {
                 ..Default::default()
             };
             
+            // Apply terrain offset to the mesh vertices
+            let mut terrain_offset_mesh = mass.mesh.clone();
+            for vertex in terrain_offset_mesh.vertices.iter_mut() {
+                let terrain_y = sample_terrain_height(vertex.position.x, vertex.position.z);
+                vertex.position.y += terrain_y;
+            }
+            
             // Attach the generated mesh as custom mesh data
-            elem.mesh = MeshData::from(mass.mesh.clone());
+            elem.mesh = MeshData::from(terrain_offset_mesh);
             
             Some(elem)
         })
