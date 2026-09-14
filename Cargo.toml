@@ -22,6 +22,9 @@ license = "MIT"
 authors = ["Jer <jer@legible.studio>"]
 repository = "https://github.com/cano-lab/LegiCAD.git"
 
+[workspace.lints.rust]
+unsafe_code = "warn"
+
 [workspace.dependencies]
 # Geometry — to be decided (parry3d, truck, or OCCT bindings)
 # nalgebra = "0.33"
